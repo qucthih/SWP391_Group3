@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    /* 1. Môi trường đích và Module */
+    "target": "ES2022",                // Biên dịch ra chuẩn cú pháp JavaScript ES2022 hiện đại
+    "module": "NodeNext",              // Sử dụng hệ thống module Node.js mới nhất (hỗ trợ import/export chuẩn ES Modules)
+    "moduleResolution": "NodeNext",    // Cơ chế giải quyết đường dẫn file module theo chuẩn hiện đại của Node
+    "lib": ["ES2022"],                 // Nạp sẵn danh sách các hàm chuẩn của ES2022 (như Array, Promise, Object methods)
+
+    /* 2. Đường dẫn thư mục mã nguồn */
+    "outDir": "./dist",                // Thư mục chứa các file .js sau khi chạy lệnh build biên dịch xong
+    "rootDir": "./src",                // Thư mục gốc chứa toàn bộ mã nguồn TypeScript của ứng dụng backend
+
+    /* 3. Kiểm tra kiểu dữ liệu nghiêm ngặt (Strict Type-Checking) */
+    "strict": true,                    // Bật toàn bộ các quy tắc kiểm tra kiểu chặt chẽ (giúp giảm thiểu tối đa bug runtime)
+
+    /* 4. Tương thích và Tối ưu hóa */
+    "esModuleInterop": true,           // Cho phép import các thư viện CommonJS cũ một cách tự nhiên (ví dụ: import express from 'express')
+    "skipLibCheck": true,              // Bỏ qua việc kiểm tra lỗi kiểu bên trong các file .d.ts của node_modules (tăng tốc độ biên dịch)
+    "forceConsistentCasingInFileNames": true // Bắt buộc viết hoa/thường tên file phải nhất quán (tránh lỗi khi đưa lên máy chủ Linux)
+  },
+  "include": [
+    "src/**/*"                         // Chỉ định trình biên dịch chỉ quét các file nằm trong thư mục src
+  ]
+}

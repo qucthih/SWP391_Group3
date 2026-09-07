@@ -1,0 +1,48 @@
+{
+  "name": "@aita/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend API service for AITA-Intelligent project (SWP391)",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "//_comment_dev": "Chạy server trong môi trường phát triển: tự động reload khi bạn sửa code mà không cần restart tay",
+    "build": "tsc",
+    "//_comment_build": "Biên dịch toàn bộ mã nguồn TypeScript (.ts) thành JavaScript thuần (.js) trong thư mục dist",
+    "start": "node dist/index.js",
+    "//_comment_start": "Chạy server sản phẩm thực tế từ file đã build trong thư mục dist",
+    "prisma:generate": "prisma generate",
+    "//_comment_prisma_gen": "Tạo lại bộ thư viện mã nguồn TypeScript Prisma Client dựa trên schema.prisma mới nhất",
+    "prisma:migrate": "prisma migrate dev",
+    "//_comment_prisma_mig": "Đồng bộ thay đổi trong schema.prisma vào database PostgreSQL thực tế"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "//_dep_prisma_client": "Bộ công cụ ORM để viết code JS/TS thao tác đọc/ghi vào Database PostgreSQL một cách an toàn",
+    "bcryptjs": "^2.4.3",
+    "//_dep_bcrypt": "Thư viện băm mật khẩu một chiều (hashing + salt) an toàn trước khi lưu vào DB",
+    "cors": "^2.8.5",
+    "//_dep_cors": "Middleware cho phép Frontend (Vite chạy port 5173) gọi API sang Backend (port 5000) mà không bị trình duyệt chặn CORS",
+    "dotenv": "^16.4.5",
+    "//_dep_dotenv": "Tự động đọc các biến cấu hình từ file .env vào process.env trong code",
+    "express": "^4.21.0",
+    "//_dep_express": "Framework web server chuẩn mực, gọn nhẹ, dễ dùng hàng đầu của Node.js",
+    "jsonwebtoken": "^9.0.2",
+    "//_dep_jwt": "Tạo và kiểm tra chữ ký điện tử JWT Token để bảo mật luồng Đăng nhập (Auth)",
+    "zod": "^3.23.8",
+    "//_dep_zod": "Thư viện kiểm tra định dạng dữ liệu đầu vào của API (Validate request body: email hợp lệ, mật khẩu đủ độ dài...)"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.16.5",
+    "//_dev_types": "Các gói định nghĩa kiểu dữ liệu (Type Definitions) giúp VS Code gợi ý code thông minh và bắt lỗi compile",
+    "prisma": "^5.19.1",
+    "//_dev_prisma_cli": "Công cụ dòng lệnh CLI của Prisma để chạy migrate, sinh code, mở giao diện quản lý DB (Prisma Studio)",
+    "tsx": "^4.19.1",
+    "//_dev_tsx": "Công cụ chạy trực tiếp file TypeScript (.ts) siêu tốc mà không cần bước build trung gian",
+    "typescript": "^5.6.2",
+    "//_dev_typescript": "Trình biên dịch ngôn ngữ TypeScript sang JavaScript"
+  }
+}

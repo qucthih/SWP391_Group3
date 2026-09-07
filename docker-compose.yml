@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: aita_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: aita_user
+      POSTGRES_PASSWORD: aita_password
+      POSTGRES_DB: aita_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Queue & Caching Redis
+  redis:
+    image: redis:7-alpine
+    container_name: aita_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
