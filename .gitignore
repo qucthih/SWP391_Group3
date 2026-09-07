@@ -24,3 +24,7 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+#schedule plan + RBL syllabus
+plan.md
+RBL_Syllabus_AITA_10Weeks.md
