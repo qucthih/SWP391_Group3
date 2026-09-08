@@ -1,67 +1,67 @@
 # AITA-INTELLIGENT — Software Requirements Specification (SRS)
 
-**Phiên bản:** 1.0
-**Ngày tạo:** 07/09/2026
-**Nhóm phát triển:** SWP391 – Group 3
-**Học kỳ:** Fall 2026 – FPT University
+**Version:** 1.0
+**Date Created:** 09/07/2026
+**Development Team:** SWP391 – Group 3
+**Semester:** Fall 2026 – FPT University
 
 ---
 
-## Mục lục
+## Table of Contents
 
-1. [Giới thiệu](#1-giới-thiệu)
-2. [Mô tả tổng quan hệ thống](#2-mô-tả-tổng-quan-hệ-thống)
-3. [Tác nhân hệ thống (System Actors)](#3-tác-nhân-hệ-thống-system-actors)
-4. [Danh sách User Stories](#4-danh-sách-user-stories)
-5. [Đặc tả Use Case chi tiết](#5-đặc-tả-use-case-chi-tiết)
-6. [Sơ đồ UML](#6-sơ-đồ-uml)
-7. [Yêu cầu phi chức năng (Non-Functional Requirements)](#7-yêu-cầu-phi-chức-năng-non-functional-requirements)
-8. [Ràng buộc hệ thống (System Constraints)](#8-ràng-buộc-hệ-thống-system-constraints)
-9. [Phụ lục – Nhật ký sử dụng AI (AI Validation Logs)](#9-phụ-lục--nhật-ký-sử-dụng-ai-ai-validation-logs)
+1. [Introduction](#1-introduction)
+2. [System Overview](#2-system-overview)
+3. [System Actors](#3-system-actors)
+4. [User Stories](#4-user-stories)
+5. [Detailed Use Case Specifications](#5-detailed-use-case-specifications)
+6. [UML Diagrams](#6-uml-diagrams)
+7. [Non-Functional Requirements](#7-non-functional-requirements)
+8. [System Constraints](#8-system-constraints)
+9. [Appendix – AI Validation Logs](#9-appendix--ai-validation-logs)
 
 ---
 
-## 1. Giới thiệu
+## 1. Introduction
 
-### 1.1. Mục đích tài liệu (Purpose)
-Tài liệu Đặc tả Yêu cầu Phần mềm (SRS) này mô tả toàn bộ yêu cầu chức năng và phi chức năng của hệ thống **AITA-Intelligent** (AI-Powered Teaching Assistant & AST Code Analytics Platform). Tài liệu phục vụ làm cơ sở cho việc thiết kế, phát triển, kiểm thử và nghiệm thu sản phẩm phần mềm trong khuôn khổ học phần SWP391 – Dự án Phát triển Phần mềm.
+### 1.1. Document Purpose
+This Software Requirements Specification (SRS) document describes all functional and non-functional requirements of the **AITA-Intelligent** system (AI-Powered Teaching Assistant & AST Code Analytics Platform). This document serves as the foundation for system design, development, testing, and acceptance within the scope of the SWP391 – Software Development Project course.
 
-### 1.2. Phạm vi dự án (Scope)
-AITA-Intelligent là một nền tảng hỗ trợ giảng dạy lập trình thông minh, bao gồm:
-- **Cổng thông tin Web & Mobile** cho sinh viên và giảng viên (Portal & Auth).
-- **Hệ thống chấm điểm mã nguồn tự động** trong môi trường Docker cô lập (Autograding Sandbox).
-- **Module tích hợp AI tạo sinh** (GenAI) hỗ trợ soạn đề, chấm điểm Clean Code và giải thích lỗi biên dịch.
-- **Công cụ phát hiện đạo văn mã nguồn** dựa trên phân tích Cây cú pháp trừu tượng (AST) kết hợp thuật toán Winnowing.
-- **Hệ thống hàng đợi nền** (Redis Queue) và phân tích đóng góp nhóm bằng Git Analytics.
+### 1.2. Project Scope
+AITA-Intelligent is an intelligent programming education support platform, consisting of:
+- **Web & Mobile Portal** for students and lecturers (Portal & Auth).
+- **Automated code grading system** within isolated Docker environments (Autograding Sandbox).
+- **Generative AI module** (GenAI) supporting assignment creation, Clean Code grading, and compilation error explanation.
+- **Source code plagiarism detection tool** based on Abstract Syntax Tree (AST) analysis combined with the Winnowing algorithm.
+- **Background processing queue** (Redis Queue) and team contribution analysis via Git Analytics.
 
-### 1.3. Đối tượng sử dụng tài liệu (Intended Audience)
-| Đối tượng | Mục đích sử dụng |
+### 1.3. Intended Audience
+| Audience | Purpose |
 |---|---|
-| Giảng viên hướng dẫn (Instructor) | Đánh giá, nghiệm thu sản phẩm |
-| Nhóm phát triển (Dev Team) | Tham chiếu khi thiết kế, lập trình |
-| Nhóm đánh giá chéo P2P (Peer Reviewers) | Kiểm tra tính đầy đủ của yêu cầu |
-| Hội đồng bảo vệ (Defense Committee) | Đánh giá cuối kỳ |
+| Instructor | Product evaluation and acceptance |
+| Development Team (Dev Team) | Design and development reference |
+| P2P Peer Reviewers | Requirement completeness review |
+| Defense Committee | Final evaluation |
 
-### 1.4. Thuật ngữ và Từ viết tắt (Glossary)
-| Thuật ngữ | Định nghĩa |
+### 1.4. Glossary
+| Term | Definition |
 |---|---|
-| **AST** | Abstract Syntax Tree – Cây cú pháp trừu tượng, biểu diễn cấu trúc logic của mã nguồn |
-| **Winnowing** | Thuật toán tạo vân tay số (fingerprint) từ chuỗi k-grams để so khớp văn bản/mã nguồn |
-| **Sandbox** | Môi trường thực thi mã nguồn cô lập (Docker Container) với tài nguyên giới hạn |
-| **JWT** | JSON Web Token – Chuẩn xác thực stateless |
-| **SSO** | Single Sign-On – Đăng nhập một lần qua Google OAuth 2.0 |
-| **BullMQ** | Thư viện hàng đợi (queue) dựa trên Redis cho Node.js |
-| **LLM** | Large Language Model – Mô hình ngôn ngữ lớn (GPT-4o, Gemini) |
-| **ERD** | Entity-Relationship Diagram – Sơ đồ quan hệ thực thể |
-| **SRS** | Software Requirements Specification – Tài liệu đặc tả yêu cầu phần mềm |
-| **P2P** | Peer-to-Peer – Đánh giá ngang hàng giữa các nhóm |
-| **UAT** | User Acceptance Testing – Kiểm thử chấp nhận người dùng |
+| **AST** | Abstract Syntax Tree – A tree representation of the logical structure of source code |
+| **Winnowing** | An algorithm for creating digital fingerprints from k-gram sequences for text/code matching |
+| **Sandbox** | An isolated code execution environment (Docker Container) with limited resources |
+| **JWT** | JSON Web Token – A stateless authentication standard |
+| **SSO** | Single Sign-On – One-click login via Google OAuth 2.0 |
+| **BullMQ** | A Redis-based queue library for Node.js |
+| **LLM** | Large Language Model – e.g., GPT-4o, Gemini |
+| **ERD** | Entity-Relationship Diagram |
+| **SRS** | Software Requirements Specification |
+| **P2P** | Peer-to-Peer – Cross-team evaluation |
+| **UAT** | User Acceptance Testing |
 | **CI/CD** | Continuous Integration / Continuous Deployment |
-| **LOC** | Lines of Code – Số dòng mã nguồn |
-| **k-gram** | Chuỗi con liên tiếp gồm k phần tử, dùng trong thuật toán Winnowing |
-| **Fingerprint** | Vân tay số – Tập hợp các giá trị băm đại diện cho một tài liệu/mã nguồn |
+| **LOC** | Lines of Code |
+| **k-gram** | A contiguous subsequence of k elements, used in the Winnowing algorithm |
+| **Fingerprint** | Digital fingerprint – A set of hash values representing a document/source code |
 
-### 1.5. Tài liệu tham chiếu (References)
+### 1.5. References
 1. Schleimer, S., Wilkerson, D.S., Aiken, A. (2003). *"Winnowing: Local Algorithms for Document Fingerprinting"*. ACM SIGMOD 2003.
 2. Parr, T. (2010). *"Language Implementation Patterns"*. Pragmatic Bookshelf.
 3. Sommerville, I. (2016). *"Software Engineering"*, 10th Edition. Pearson.
@@ -70,15 +70,15 @@ AITA-Intelligent là một nền tảng hỗ trợ giảng dạy lập trình th
 
 ---
 
-## 2. Mô tả tổng quan hệ thống
+## 2. System Overview
 
-### 2.1. Bối cảnh sản phẩm (Product Context)
-Hệ thống AITA-Intelligent giải quyết các bài toán thực tế trong giảng dạy lập trình tại các trường đại học:
-- **Chấm bài thủ công tốn thời gian:** Giảng viên mất hàng giờ để chấm điểm code cho lớp đông. AITA tự động hóa quy trình này bằng Docker Sandbox.
-- **Gian lận mã nguồn tinh vi:** Sinh viên sử dụng AI (ChatGPT, Copilot) để viết bài rồi ngụy trang (đổi tên biến, đảo thứ tự hàm). Các công cụ so sánh text truyền thống bất lực. AITA dùng AST + Winnowing để phát hiện.
-- **Thiếu phản hồi chất lượng:** Sinh viên chỉ biết điểm số mà không hiểu tại sao sai. AITA tích hợp LLM để giải thích lỗi bằng ngôn ngữ tự nhiên.
+### 2.1. Product Context
+The AITA-Intelligent system addresses real-world challenges in programming education at universities:
+- **Time-consuming manual grading:** Lecturers spend hours grading code for large classes. AITA automates this process using Docker Sandbox.
+- **Sophisticated source code fraud:** Students use AI (ChatGPT, Copilot) to write submissions and then disguise them (rename variables, reorder functions). Traditional text comparison tools are ineffective. AITA uses AST + Winnowing for detection.
+- **Lack of quality feedback:** Students only see scores without understanding their mistakes. AITA integrates LLM to explain errors in natural language.
 
-### 2.2. Kiến trúc tổng quan (High-Level Architecture)
+### 2.2. High-Level Architecture
 
 ```mermaid
 graph TB
@@ -135,143 +135,143 @@ graph TB
     WS -->|"Real-time Updates"| MOBILE
 ```
 
-### 2.3. Các phân hệ cốt lõi (Core Subsystems)
-| # | Phân hệ | Mô tả | Công nghệ chính |
+### 2.3. Core Subsystems
+| # | Subsystem | Description | Key Technology |
 |---|---|---|---|
-| 1 | Portal & Auth | Giao diện người dùng, xác thực, phân quyền | React, Vite, Tailwind, JWT, Google OAuth 2.0 |
-| 2 | Docker Autograding Sandbox | Chấm code tự động trong container cô lập | Docker Engine API, Node.js |
-| 3 | GenAI Core & Review Hub | Sinh đề, chấm Clean Code, giải thích lỗi | OpenAI GPT-4o / Gemini API, LangChain |
-| 4 | AST Plagiarism Detection | Phát hiện đạo văn mã nguồn bằng AST + Winnowing | Python `ast` module, FastAPI |
-| 5 | Redis Queue & Git Analytics | Hàng đợi xử lý nền, phân tích đóng góp nhóm | BullMQ, Redis, Git CLI Parser |
+| 1 | Portal & Auth | User interface, authentication, authorization | React, Vite, Tailwind, JWT, Google OAuth 2.0 |
+| 2 | Docker Autograding Sandbox | Automated code grading in isolated containers | Docker Engine API, Node.js |
+| 3 | GenAI Core & Review Hub | Assignment generation, Clean Code grading, error explanation | OpenAI GPT-4o / Gemini API, LangChain |
+| 4 | AST Plagiarism Detection | Source code plagiarism detection using AST + Winnowing | Python `ast` module, FastAPI |
+| 5 | Redis Queue & Git Analytics | Background processing queue, team contribution analysis | BullMQ, Redis, Git CLI Parser |
 
 ---
 
-## 3. Tác nhân hệ thống (System Actors)
+## 3. System Actors
 
-### 3.1. Sơ đồ tác nhân
+### 3.1. Actor Diagram
 
 ```mermaid
 graph LR
-    STUDENT["👨‍🎓 Student<br/>(Sinh viên)"]
-    LECTURER["👩‍🏫 Lecturer<br/>(Giảng viên)"]
-    ADMIN["🛡️ Administrator<br/>(Quản trị viên)"]
-    AI["🤖 AI Engine<br/>(Hệ thống AI)"]
+    STUDENT["👨‍🎓 Student"]
+    LECTURER["👩‍🏫 Lecturer"]
+    ADMIN["🛡️ Administrator"]
+    AI["🤖 AI Engine"]
     DOCKER["🐳 Docker Engine<br/>(Sandbox)"]
 
-    STUDENT -->|Nộp bài, Xem điểm, Kháng cáo| SYSTEM(("AITA System"))
-    LECTURER -->|Tạo đề, Chấm điểm, Quản lý lớp| SYSTEM
-    ADMIN -->|Quản trị user, Cấu hình hệ thống| SYSTEM
-    AI -->|Sinh đề, Review code, Giải thích lỗi| SYSTEM
-    DOCKER -->|Thực thi code, Trả kết quả| SYSTEM
+    STUDENT -->|Submit, View grades, Appeal| SYSTEM(("AITA System"))
+    LECTURER -->|Create assignments, Grade, Manage classes| SYSTEM
+    ADMIN -->|Manage users, Configure system| SYSTEM
+    AI -->|Generate assignments, Review code, Explain errors| SYSTEM
+    DOCKER -->|Execute code, Return results| SYSTEM
 ```
 
-### 3.2. Mô tả chi tiết từng tác nhân
+### 3.2. Detailed Actor Descriptions
 
-| Tác nhân | Vai trò | Quyền hạn chính |
+| Actor | Role | Key Permissions |
 |---|---|---|
-| **Student** | Sinh viên sử dụng hệ thống để nộp bài, xem kết quả chấm điểm và kháng cáo nếu không đồng ý với kết quả | Đăng nhập SSO (@fpt.edu.vn), xem danh sách bài tập, nộp file .zip, xem kết quả realtime, gửi đơn kháng cáo |
-| **Lecturer** | Giảng viên tạo lớp học, soạn đề thi, quản lý barem chấm điểm, giám sát kết quả và xử lý khiếu nại | Tạo/sửa/xóa lớp học, import danh sách SV từ Excel, tạo bài tập + test cases, yêu cầu AI sinh đề/barem, xem báo cáo thống kê, xử lý kháng cáo, xem Git Analytics |
-| **Administrator** | Quản trị viên hệ thống quản lý tài khoản, cấu hình Docker và giám sát hoạt động hệ thống | Quản lý user, cấu hình Sandbox (RAM, CPU limits), quản lý API keys (OpenAI/Gemini), xem audit logs |
-| **AI Engine** | Tác nhân hệ thống tự động – Không phải con người. Thực hiện các tác vụ sinh nội dung và đánh giá chất lượng code | Sinh đề bài từ mô tả của GV, sinh barem/rubric, đánh giá Clean Code (SOLID, naming, architecture), giải thích lỗi biên dịch bằng ngôn ngữ tự nhiên |
-| **Docker Engine** | Tác nhân hệ thống tự động. Là runtime cô lập thực thi mã nguồn sinh viên nộp | Tạo/hủy container, giới hạn tài nguyên (512MB RAM, CPU shares), ngắt mạng ngoài, thu nhận stdout/stderr, enforce timeout |
+| **Student** | Students use the system to submit assignments, view grading results, and appeal if they disagree with the outcome | SSO login (@fpt.edu.vn), view assignment list, upload .zip file, view real-time results, submit appeal |
+| **Lecturer** | Lecturers create classes, design exams, manage grading rubrics, monitor results, and handle complaints | Create/edit/delete classes, import student lists from Excel, create assignments + test cases, request AI-generated assignments/rubrics, view statistical reports, handle appeals, view Git Analytics |
+| **Administrator** | System administrators manage accounts, configure Docker, and monitor system operations | Manage users, configure Sandbox (RAM, CPU limits), manage API keys (OpenAI/Gemini), view audit logs |
+| **AI Engine** | Automated system actor – Not a human. Performs content generation and code quality evaluation tasks | Generate assignments from lecturer descriptions, generate rubrics, evaluate Clean Code (SOLID, naming, architecture), explain compilation errors in natural language |
+| **Docker Engine** | Automated system actor. An isolated runtime that executes student-submitted source code | Create/destroy containers, limit resources (512MB RAM, CPU shares), disable external network, capture stdout/stderr, enforce timeout |
 
 ---
 
-## 4. Danh sách User Stories
+## 4. User Stories
 
-### 4.1. Nhóm chức năng: Sinh viên (Student)
+### 4.1. Student Features
 
 | ID | User Story | Acceptance Criteria | Priority |
 |---|---|---|---|
-| **US-01** | Là một **sinh viên**, tôi muốn **đăng nhập vào hệ thống bằng tài khoản Google FPT** (`@fpt.edu.vn` / `@fe.edu.vn`) để tôi không cần tạo tài khoản mới và đảm bảo danh tính xác thực. | - Chỉ chấp nhận email miền FPT<br/>- Redirect về Dashboard sau khi đăng nhập<br/>- JWT lưu trong HttpOnly Cookie | 🔴 Cao |
-| **US-02** | Là một **sinh viên**, tôi muốn **xem danh sách các bài tập (Assignments)** của lớp mình đang tham gia, để biết deadline và trạng thái nộp bài. | - Hiển thị tên bài, deadline, trạng thái (Chưa nộp / Đã nộp / Đã chấm)<br/>- Sắp xếp theo deadline gần nhất | 🔴 Cao |
-| **US-03** | Là một **sinh viên**, tôi muốn **nộp bài tập dưới dạng file .zip** chứa mã nguồn, để hệ thống tự động chấm điểm cho tôi. | - Chỉ chấp nhận file .zip (tối đa 10MB)<br/>- File được băm SHA-256 để xác thực tính toàn vẹn<br/>- Hệ thống hiển thị trạng thái "Đã nhận bài" ngay lập tức | 🔴 Cao |
-| **US-04** | Là một **sinh viên**, tôi muốn **xem kết quả chấm điểm realtime** (điểm test cases, điểm Clean Code, kết quả kiểm tra đạo văn) ngay khi hệ thống xử lý xong, mà không cần reload trang. | - Cập nhật realtime qua WebSocket<br/>- Hiển thị rõ: Passed/Failed cho từng test case<br/>- Hiển thị điểm Clean Code kèm giải thích từ AI<br/>- Hiển thị phần trăm tương đồng đạo văn (nếu > 30% thì cảnh báo đỏ) | 🔴 Cao |
-| **US-05** | Là một **sinh viên**, tôi muốn **gửi đơn kháng cáo (Appeal)** nếu tôi cho rằng kết quả chấm điểm tự động không chính xác, để giảng viên xem xét lại. | - Form kháng cáo có trường "Lý do" (textarea)<br/>- Trạng thái kháng cáo: Đang chờ / Đã chấp nhận / Đã từ chối<br/>- Sinh viên nhận thông báo khi GV phản hồi | 🟡 Trung bình |
+| **US-01** | As a **student**, I want to **log in using my FPT Google account** (`@fpt.edu.vn` / `@fe.edu.vn`) so I don't need to create a new account and my identity is verified. | - Only accept FPT domain emails<br/>- Redirect to Dashboard after login<br/>- JWT stored in HttpOnly Cookie | 🔴 High |
+| **US-02** | As a **student**, I want to **view the list of Assignments** for my enrolled class, so I can track deadlines and submission status. | - Display assignment name, deadline, status (Not submitted / Submitted / Graded)<br/>- Sort by nearest deadline | 🔴 High |
+| **US-03** | As a **student**, I want to **submit assignments as a .zip file** containing source code, so the system can automatically grade them for me. | - Only accept .zip files (max 10MB)<br/>- File hashed with SHA-256 for integrity verification<br/>- System displays "Submission received" immediately | 🔴 High |
+| **US-04** | As a **student**, I want to **view grading results in real-time** (test case scores, Clean Code score, plagiarism check results) as soon as the system finishes processing, without needing to reload the page. | - Real-time updates via WebSocket<br/>- Clearly display: Passed/Failed for each test case<br/>- Display Clean Code score with AI explanation<br/>- Display plagiarism similarity percentage (red warning if > 30%) | 🔴 High |
+| **US-05** | As a **student**, I want to **submit an Appeal** if I believe the automated grading result is inaccurate, so the lecturer can re-evaluate. | - Appeal form with "Reason" field (textarea)<br/>- Appeal status: Pending / Accepted / Rejected<br/>- Student receives notification when lecturer responds | 🟡 Medium |
 
-### 4.2. Nhóm chức năng: Giảng viên (Lecturer)
-
-| ID | User Story | Acceptance Criteria | Priority |
-|---|---|---|---|
-| **US-06** | Là một **giảng viên**, tôi muốn **tạo lớp học mới và import danh sách sinh viên từ file Excel**, để tiết kiệm thời gian nhập liệu thủ công. | - Upload file .xlsx, hệ thống tự parse cột: Mã SV, Họ tên, Email<br/>- Sử dụng DB Transaction để đảm bảo import toàn bộ hoặc rollback nếu lỗi<br/>- Báo cáo số lượng import thành công/thất bại | 🔴 Cao |
-| **US-07** | Là một **giảng viên**, tôi muốn **tạo bài tập (Assignment) kèm bộ test cases** (dạng StdIn/StdOut), để hệ thống có thể chấm điểm tự động cho sinh viên. | - Nhập tiêu đề, mô tả, deadline<br/>- Thêm nhiều test case (mỗi test case gồm: Input, Expected Output, điểm số)<br/>- Chọn ngôn ngữ lập trình cho Sandbox (Java, Python, C#) | 🔴 Cao |
-| **US-08** | Là một **giảng viên**, tôi muốn **yêu cầu AI tự động sinh đề bài và barem điểm** từ mô tả ngắn gọn của tôi, để giảm thời gian soạn đề. | - GV nhập prompt mô tả chủ đề (ví dụ: "Bài tập về linked list")<br/>- AI trả về: đề bài hoàn chỉnh, input/output mẫu, rubric chấm điểm<br/>- GV có thể chỉnh sửa trước khi lưu | 🟡 Trung bình |
-| **US-09** | Là một **giảng viên**, tôi muốn **xem Dashboard thống kê tổng quan** (tỷ lệ nộp bài, phân bố điểm, danh sách nghi vấn đạo văn) cho mỗi bài tập, để nắm bắt tình hình lớp nhanh chóng. | - Biểu đồ tròn: tỷ lệ nộp bài<br/>- Biểu đồ cột: phân bố điểm<br/>- Bảng: Top 10 cặp bài nộp có % tương đồng cao nhất (AST Plagiarism) | 🔴 Cao |
-| **US-10** | Là một **giảng viên**, tôi muốn **xử lý đơn kháng cáo của sinh viên** (Chấp nhận hoặc Từ chối kèm lý do), để đảm bảo sự công bằng trong chấm điểm. | - Danh sách kháng cáo Pending<br/>- Xem lại code + kết quả chấm gốc<br/>- Nút Accept (chấm lại) hoặc Reject (kèm lý do) | 🟡 Trung bình |
-| **US-11** | Là một **giảng viên**, tôi muốn **xem báo cáo đóng góp Git Analytics** của từng thành viên trong nhóm (commits, LOC, PRs), để đánh giá mức độ đóng góp cá nhân và phát hiện free-riding. | - Nhập URL GitHub Repo của nhóm<br/>- Hiển thị: Tổng commits, LOC added/removed, số PR merged, biểu đồ đóng góp theo thời gian<br/>- Cảnh báo đỏ nếu thành viên đóng góp < 5% | 🟡 Trung bình |
-
-### 4.3. Nhóm chức năng: Hệ thống tự động (System / AI / Docker)
+### 4.2. Lecturer Features
 
 | ID | User Story | Acceptance Criteria | Priority |
 |---|---|---|---|
-| **US-12** | Là **hệ thống**, khi nhận được file .zip bài nộp, tôi phải **đưa bài nộp vào hàng đợi Redis (BullMQ)** để xử lý không đồng bộ, tránh block luồng chính của API. | - Bài nộp được enqueue với metadata: submissionId, studentId, language<br/>- Queue có cơ chế retry (tối đa 3 lần) nếu job thất bại<br/>- API trả về ngay status 202 Accepted | 🔴 Cao |
-| **US-13** | Là **hệ thống Docker Sandbox**, khi nhận job từ Redis Queue, tôi phải **tạo container cô lập** với giới hạn: 512MB RAM, CPU shares giới hạn, **ngắt hoàn toàn kết nối mạng**, biên dịch và chạy code sinh viên với bộ test cases, rồi trả kết quả. | - Container tự hủy sau khi chạy xong hoặc sau timeout (30 giây)<br/>- Không cho phép: fork bomb, đọc file host, ghi file vượt quota<br/>- Trả kết quả: Passed/Failed cho mỗi test case + stdout/stderr | 🔴 Cao |
-| **US-14** | Là **hệ thống AST Engine**, sau khi Docker chấm xong, tôi phải **chuyển mã nguồn thành cây AST, loại bỏ ngụy trang bề mặt** (tên biến, comments, thứ tự hàm), **áp dụng Winnowing** để tạo fingerprint, và **so khớp với toàn bộ bài nộp khác** trong cùng assignment để tính % tương đồng. | - Hỗ trợ parse: Python (module `ast`), C# (Roslyn), Java (ANTLR)<br/>- Loại bỏ: tên biến, tên hàm, comments, whitespace, thứ tự hàm<br/>- Winnowing: chọn k-gram size = 25, window size = 40<br/>- Lưu fingerprint vào bảng `ASTFingerprints`<br/>- Tạo Similarity Matrix: mọi cặp bài nộp | 🔴 Cao |
-| **US-15** | Là **hệ thống AI (LLM)**, sau khi Docker chấm xong, tôi phải **đánh giá chất lượng mã nguồn** (Clean Code, SOLID, naming convention, kiến trúc layer) và **giải thích lỗi biên dịch bằng ngôn ngữ tự nhiên tiếng Việt** để sinh viên hiểu. | - Sử dụng API GPT-4o hoặc Gemini (xoay vòng key)<br/>- Prompt Chain-of-Thought + Few-Shot Learning<br/>- Trả về: điểm Clean Code (0-100), danh sách nhận xét cụ thể từng file, giải thích lỗi biên dịch nếu có<br/>- Timeout: tối đa 60 giây/request | 🟡 Trung bình |
+| **US-06** | As a **lecturer**, I want to **create a new class and import student lists from an Excel file**, to save time on manual data entry. | - Upload .xlsx file, system auto-parses columns: Student ID, Full Name, Email<br/>- Use DB Transaction to ensure full import or rollback on error<br/>- Report successful/failed import counts | 🔴 High |
+| **US-07** | As a **lecturer**, I want to **create Assignments with test cases** (StdIn/StdOut format), so the system can automatically grade student submissions. | - Input title, description, deadline<br/>- Add multiple test cases (each with: Input, Expected Output, score weight)<br/>- Select programming language for Sandbox (Java, Python, C#) | 🔴 High |
+| **US-08** | As a **lecturer**, I want to **request AI to automatically generate assignments and grading rubrics** from my brief description, to reduce assignment preparation time. | - Lecturer enters a prompt describing the topic (e.g., "Assignment on linked list")<br/>- AI returns: complete assignment, sample input/output, grading rubric<br/>- Lecturer can edit before saving | 🟡 Medium |
+| **US-09** | As a **lecturer**, I want to **view a Dashboard with overview statistics** (submission rate, score distribution, plagiarism suspects) for each assignment, to quickly assess class performance. | - Pie chart: submission rate<br/>- Bar chart: score distribution<br/>- Table: Top 10 submission pairs with highest similarity % (AST Plagiarism) | 🔴 High |
+| **US-10** | As a **lecturer**, I want to **handle student appeals** (Accept or Reject with reason), to ensure fairness in grading. | - List of Pending appeals<br/>- Review code + original grading results<br/>- Accept (re-grade) or Reject (with reason) button | 🟡 Medium |
+| **US-11** | As a **lecturer**, I want to **view Git Analytics reports** for each team member (commits, LOC, PRs), to evaluate individual contributions and detect free-riding. | - Input GitHub Repo URL of the team<br/>- Display: Total commits, LOC added/removed, PRs merged, contribution chart over time<br/>- Red warning if a member contributes < 5% | 🟡 Medium |
+
+### 4.3. System / AI / Docker Features
+
+| ID | User Story | Acceptance Criteria | Priority |
+|---|---|---|---|
+| **US-12** | As the **system**, when receiving a .zip submission file, I must **enqueue the submission into Redis (BullMQ)** for asynchronous processing, to avoid blocking the main API thread. | - Submission enqueued with metadata: submissionId, studentId, language<br/>- Queue has retry mechanism (max 3 retries) on job failure<br/>- API immediately returns status 202 Accepted | 🔴 High |
+| **US-13** | As the **Docker Sandbox system**, when receiving a job from Redis Queue, I must **create an isolated container** with limits: 512MB RAM, limited CPU shares, **completely disabled network access**, compile and run student code with test cases, then return results. | - Container self-destructs after completion or timeout (30 seconds)<br/>- Prevent: fork bomb, host file reads, disk quota overflow<br/>- Return results: Passed/Failed for each test case + stdout/stderr | 🔴 High |
+| **US-14** | As the **AST Engine system**, after Docker finishes grading, I must **convert source code to an AST, remove surface-level disguises** (variable names, comments, function order), **apply Winnowing** to create fingerprints, and **compare against all other submissions** in the same assignment to calculate similarity %. | - Support parsing: Python (`ast` module), C# (Roslyn), Java (ANTLR)<br/>- Remove: variable names, function names, comments, whitespace, function order<br/>- Winnowing: k-gram size = 25, window size = 40<br/>- Store fingerprints in `ASTFingerprints` table<br/>- Create Similarity Matrix: all submission pairs | 🔴 High |
+| **US-15** | As the **AI system (LLM)**, after Docker finishes grading, I must **evaluate source code quality** (Clean Code, SOLID, naming convention, layer architecture) and **explain compilation errors in Vietnamese natural language** so students can understand. | - Use GPT-4o or Gemini API (round-robin key rotation)<br/>- Chain-of-Thought + Few-Shot Learning prompts<br/>- Return: Clean Code score (0-100), specific comments per file, compilation error explanation if any<br/>- Timeout: max 60 seconds/request | 🟡 Medium |
 
 ---
 
-## 5. Đặc tả Use Case chi tiết
+## 5. Detailed Use Case Specifications
 
-### UC-01: Sinh viên nộp bài tập (Submit Assignment)
-| Thuộc tính | Mô tả |
+### UC-01: Student Submits Assignment (Submit Assignment)
+| Attribute | Description |
 |---|---|
-| **Tác nhân chính** | Student |
-| **Tác nhân phụ** | Docker Sandbox, AST Engine, AI Engine |
-| **Điều kiện tiên quyết** | Student đã đăng nhập, Assignment chưa hết deadline |
-| **Kịch bản chính (Main Flow)** | 1. Student chọn Assignment từ danh sách<br/>2. Student upload file `.zip` chứa mã nguồn<br/>3. Hệ thống validate file (kiểm tra dung lượng ≤ 10MB, định dạng .zip)<br/>4. Hệ thống băm SHA-256 file để xác thực tính toàn vẹn<br/>5. Hệ thống tạo record `Submission` với trạng thái `PENDING`<br/>6. Hệ thống đẩy job vào Redis Queue (BullMQ)<br/>7. Redis Queue chuyển job cho Docker Sandbox<br/>8. Docker Sandbox tạo container cô lập, biên dịch và chạy test cases<br/>9. Docker trả kết quả test → Hệ thống cập nhật trạng thái `GRADING`<br/>10. AST Engine parse mã nguồn, tạo fingerprint, so khớp đạo văn<br/>11. AI Engine đánh giá Clean Code + giải thích lỗi<br/>12. Hệ thống tổng hợp điểm, cập nhật trạng thái `COMPLETED`<br/>13. Gửi kết quả realtime cho Student qua WebSocket |
-| **Kịch bản thay thế (Alternative Flow)** | **4a.** File bị corrupt hoặc vượt dung lượng → Báo lỗi, yêu cầu nộp lại<br/>**8a.** Code sinh viên chứa mã độc (fork bomb) → Docker kill container sau timeout 30s → Trạng thái `SECURITY_VIOLATION`<br/>**8b.** Code không biên dịch được → Trả lỗi compilation + AI giải thích lỗi<br/>**10a.** Phát hiện % tương đồng > 80% → Gắn cờ `PLAGIARISM_DETECTED`, thông báo giảng viên |
-| **Kịch bản ngoại lệ (Exception Flow)** | **7a.** Redis Queue đầy hoặc bị down → Hệ thống retry 3 lần, nếu vẫn fail → Trạng thái `QUEUE_ERROR`, thông báo Admin<br/>**11a.** API OpenAI/Gemini timeout → Bỏ qua điểm Clean Code, chấm dựa trên test cases + AST, đánh dấu "AI Review Pending" |
-| **Hậu điều kiện** | Record `Submission` được cập nhật trạng thái cuối cùng và điểm số. Student nhận kết quả trên giao diện. |
+| **Primary Actor** | Student |
+| **Secondary Actors** | Docker Sandbox, AST Engine, AI Engine |
+| **Preconditions** | Student is logged in, Assignment deadline has not passed |
+| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Docker Sandbox<br/>8. Docker Sandbox creates isolated container, compiles and runs test cases<br/>9. Docker returns test results → System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score, updates status to `COMPLETED`<br/>13. Sends real-time results to Student via WebSocket |
+| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb) → Docker kills container after 30s timeout → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**10a.** Similarity detected > 80% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
+| **Exception Flow** | **7a.** Redis Queue is full or down → System retries 3 times, if still failing → Status `QUEUE_ERROR`, notify Admin<br/>**11a.** OpenAI/Gemini API timeout → Skip Clean Code score, grade based on test cases + AST, mark "AI Review Pending" |
+| **Postconditions** | `Submission` record is updated with final status and score. Student receives results on the interface. |
 
 ---
 
-### UC-02: Giảng viên tạo bài tập và sinh đề bằng AI (Create Assignment with AI)
-| Thuộc tính | Mô tả |
+### UC-02: Lecturer Creates Assignment with AI (Create Assignment with AI)
+| Attribute | Description |
 |---|---|
-| **Tác nhân chính** | Lecturer |
-| **Tác nhân phụ** | AI Engine |
-| **Điều kiện tiên quyết** | Lecturer đã đăng nhập, đã tạo ít nhất 1 lớp học (Class) |
-| **Kịch bản chính (Main Flow)** | 1. Lecturer chọn lớp học và nhấn "Tạo bài tập mới"<br/>2. Lecturer nhập: Tiêu đề, Mô tả chung, Ngôn ngữ lập trình, Deadline<br/>3. (Tùy chọn) Lecturer nhấn "Sinh đề bằng AI": nhập prompt mô tả chủ đề<br/>4. AI Engine trả về: Đề bài chi tiết, Input/Output mẫu, Rubric chấm điểm<br/>5. Lecturer review, chỉnh sửa nội dung AI sinh ra<br/>6. Lecturer thêm bộ Test Cases (StdIn → Expected StdOut) thủ công hoặc từ AI<br/>7. Lecturer nhấn "Lưu và Publish"<br/>8. Hệ thống tạo record Assignment, gửi thông báo đến tất cả sinh viên trong lớp |
-| **Kịch bản thay thế (Alternative Flow)** | **3a.** Lecturer không dùng AI → Tự nhập đề bài hoàn toàn thủ công<br/>**4a.** AI trả về kết quả không phù hợp → Lecturer nhấn "Sinh lại" (regenerate) với prompt khác<br/>**6a.** Test cases không hợp lệ (Expected Output trống) → Hệ thống cảnh báo và yêu cầu sửa |
-| **Hậu điều kiện** | Assignment được tạo và hiển thị trong danh sách bài tập của lớp. |
+| **Primary Actor** | Lecturer |
+| **Secondary Actors** | AI Engine |
+| **Preconditions** | Lecturer is logged in, has created at least 1 class |
+| **Main Flow** | 1. Lecturer selects class and clicks "Create New Assignment"<br/>2. Lecturer enters: Title, General Description, Programming Language, Deadline<br/>3. (Optional) Lecturer clicks "Generate with AI": enters a topic description prompt<br/>4. AI Engine returns: Detailed assignment, sample Input/Output, Grading Rubric<br/>5. Lecturer reviews and edits AI-generated content<br/>6. Lecturer adds Test Cases (StdIn → Expected StdOut) manually or from AI<br/>7. Lecturer clicks "Save & Publish"<br/>8. System creates Assignment record, sends notification to all students in the class |
+| **Alternative Flow** | **3a.** Lecturer doesn't use AI → Manually enters the entire assignment<br/>**4a.** AI returns unsuitable results → Lecturer clicks "Regenerate" with a different prompt<br/>**6a.** Test cases are invalid (Expected Output is empty) → System warns and requests correction |
+| **Postconditions** | Assignment is created and displayed in the class assignment list. |
 
 ---
 
-### UC-03: Giảng viên import danh sách sinh viên (Bulk Import Students)
-| Thuộc tính | Mô tả |
+### UC-03: Lecturer Imports Student List (Bulk Import Students)
+| Attribute | Description |
 |---|---|
-| **Tác nhân chính** | Lecturer |
-| **Điều kiện tiên quyết** | Lecturer đã tạo lớp học, có file Excel đúng định dạng |
-| **Kịch bản chính (Main Flow)** | 1. Lecturer chọn lớp học, nhấn "Import sinh viên"<br/>2. Lecturer upload file `.xlsx`<br/>3. Hệ thống parse file, trích xuất: Mã SV, Họ tên, Email<br/>4. Hệ thống hiển thị preview danh sách (cho GV kiểm tra)<br/>5. Lecturer nhấn "Xác nhận Import"<br/>6. Hệ thống dùng **SQL Transaction** để insert toàn bộ sinh viên<br/>7. Hiển thị kết quả: X sinh viên thành công, Y bản ghi trùng lặp |
-| **Kịch bản thay thế (Alternative Flow)** | **3a.** File Excel sai định dạng (thiếu cột) → Báo lỗi chi tiết, yêu cầu upload lại<br/>**6a.** Transaction fail (ví dụ: trùng email) → Rollback toàn bộ, báo lỗi cụ thể dòng nào bị trùng |
-| **Hậu điều kiện** | Danh sách sinh viên được thêm vào lớp. Các tài khoản mới được tạo (nếu chưa có). |
+| **Primary Actor** | Lecturer |
+| **Preconditions** | Lecturer has created a class, has a properly formatted Excel file |
+| **Main Flow** | 1. Lecturer selects class, clicks "Import Students"<br/>2. Lecturer uploads `.xlsx` file<br/>3. System parses file, extracts: Student ID, Full Name, Email<br/>4. System displays preview list (for lecturer to verify)<br/>5. Lecturer clicks "Confirm Import"<br/>6. System uses **SQL Transaction** to insert all students<br/>7. Displays results: X students successful, Y duplicate records |
+| **Alternative Flow** | **3a.** Excel file has wrong format (missing columns) → Display detailed error, request re-upload<br/>**6a.** Transaction fails (e.g., duplicate email) → Rollback entirely, report specific duplicate rows |
+| **Postconditions** | Student list is added to the class. New accounts are created (if not already existing). |
 
 ---
 
-## 6. Sơ đồ UML
+## 6. UML Diagrams
 
-### 6.1. Sơ đồ Use Case tổng quát (Use Case Diagram)
+### 6.1. Use Case Diagram (Overview)
 
 ```mermaid
 graph TB
     subgraph "AITA-INTELLIGENT System"
-        UC1["🔐 Đăng nhập SSO<br/>(Google OAuth)"]
-        UC2["📋 Xem danh sách bài tập"]
-        UC3["📤 Nộp bài tập (.zip)"]
-        UC4["📊 Xem kết quả chấm<br/>realtime (WebSocket)"]
-        UC5["📝 Gửi đơn kháng cáo"]
-        UC6["👥 Tạo lớp + Import SV<br/>(Excel, Transaction)"]
-        UC7["📝 Tạo bài tập +<br/>Test Cases"]
-        UC8["🤖 Sinh đề bài / Barem<br/>bằng AI"]
-        UC9["📈 Xem Dashboard<br/>thống kê"]
-        UC10["⚖️ Xử lý kháng cáo"]
-        UC11["📊 Xem Git Analytics<br/>(Chống free-riding)"]
-        UC12["⚙️ Quản lý User<br/>& Cấu hình hệ thống"]
-        UC13["📦 Đẩy job vào<br/>Redis Queue"]
-        UC14["🐳 Chấm code trong<br/>Docker Sandbox"]
-        UC15["🌳 Phân tích AST +<br/>Winnowing Plagiarism"]
-        UC16["🤖 Chấm Clean Code +<br/>Giải thích lỗi (LLM)"]
+        UC1["🔐 SSO Login<br/>(Google OAuth)"]
+        UC2["📋 View Assignment List"]
+        UC3["📤 Submit Assignment (.zip)"]
+        UC4["📊 View Grading Results<br/>Real-time (WebSocket)"]
+        UC5["📝 Submit Appeal"]
+        UC6["👥 Create Class + Import Students<br/>(Excel, Transaction)"]
+        UC7["📝 Create Assignment +<br/>Test Cases"]
+        UC8["🤖 AI-Generated Assignment<br/>/ Rubric"]
+        UC9["📈 View Statistics<br/>Dashboard"]
+        UC10["⚖️ Handle Appeals"]
+        UC11["📊 View Git Analytics<br/>(Anti Free-riding)"]
+        UC12["⚙️ Manage Users<br/>& System Configuration"]
+        UC13["📦 Enqueue Job to<br/>Redis Queue"]
+        UC14["🐳 Grade Code in<br/>Docker Sandbox"]
+        UC15["🌳 AST Analysis +<br/>Winnowing Plagiarism"]
+        UC16["🤖 Clean Code Review +<br/>Error Explanation (LLM)"]
     end
 
     STUDENT["👨‍🎓 Student"] --> UC1
@@ -296,56 +296,56 @@ graph TB
     UC14 -.->|"next step"| UC16
 ```
 
-### 6.2. Sơ đồ Activity – Luồng nộp bài và chấm điểm tự động
+### 6.2. Activity Diagram – Submission and Automated Grading Flow
 
 ```mermaid
 flowchart TD
-    START(["🟢 Bắt đầu"]) --> A["Student chọn Assignment"]
-    A --> B["Student upload file .zip"]
+    START(["🟢 Start"]) --> A["Student selects Assignment"]
+    A --> B["Student uploads .zip file"]
     B --> C{"Validate file?"}
-    C -->|"❌ File không hợp lệ<br/>(sai định dạng, > 10MB)"| D["Hiển thị lỗi,<br/>yêu cầu nộp lại"]
+    C -->|"❌ Invalid file<br/>(wrong format, > 10MB)"| D["Display error,<br/>request resubmission"]
     D --> B
-    C -->|"✅ Hợp lệ"| E["Băm SHA-256<br/>xác thực tính toàn vẹn"]
-    E --> F["Tạo record Submission<br/>status = PENDING"]
-    F --> G["Đẩy job vào<br/>Redis Queue (BullMQ)"]
-    G --> H["Redis Queue<br/>nhận và phân phối job"]
+    C -->|"✅ Valid"| E["SHA-256 hash<br/>for integrity verification"]
+    E --> F["Create Submission record<br/>status = PENDING"]
+    F --> G["Push job to<br/>Redis Queue (BullMQ)"]
+    G --> H["Redis Queue<br/>receives and dispatches job"]
 
-    H --> I["🐳 Docker Sandbox<br/>tạo Container cô lập"]
-    I --> J{"Container<br/>sẵn sàng?"}
-    J -->|"❌ Lỗi tạo container"| K["Retry (tối đa 3 lần)"]
+    H --> I["🐳 Docker Sandbox<br/>creates isolated Container"]
+    I --> J{"Container<br/>ready?"}
+    J -->|"❌ Container creation error"| K["Retry (max 3 times)"]
     K --> J
-    J -->|"✅ Sẵn sàng"| L["Giải nén .zip,<br/>biên dịch mã nguồn"]
+    J -->|"✅ Ready"| L["Extract .zip,<br/>compile source code"]
 
-    L --> M{"Biên dịch<br/>thành công?"}
-    M -->|"❌ Lỗi biên dịch"| N["Thu nhận stderr"]
-    N --> O["🤖 AI giải thích<br/>lỗi biên dịch (LLM)"]
-    O --> P["Trả kết quả:<br/>COMPILATION_ERROR"]
-    M -->|"✅ Thành công"| Q["Chạy từng Test Case<br/>(StdIn → StdOut)"]
+    L --> M{"Compilation<br/>successful?"}
+    M -->|"❌ Compilation error"| N["Capture stderr"]
+    N --> O["🤖 AI explains<br/>compilation error (LLM)"]
+    O --> P["Return result:<br/>COMPILATION_ERROR"]
+    M -->|"✅ Successful"| Q["Run each Test Case<br/>(StdIn → StdOut)"]
 
     Q --> R{"Timeout<br/>(> 30s)?"}
-    R -->|"⚠️ Timeout hoặc<br/>Mã độc phát hiện"| S["Kill container ngay<br/>status = SECURITY_VIOLATION"]
-    R -->|"✅ Hoàn thành"| T["So sánh Output vs<br/>Expected Output"]
+    R -->|"⚠️ Timeout or<br/>Malware detected"| S["Kill container immediately<br/>status = SECURITY_VIOLATION"]
+    R -->|"✅ Completed"| T["Compare Output vs<br/>Expected Output"]
 
-    T --> U["Tính điểm Test Cases"]
+    T --> U["Calculate Test Case scores"]
     U --> V["🌳 AST Engine:<br/>Parse code → AST JSON"]
-    V --> W["Loại bỏ ngụy trang<br/>(tên biến, comments, thứ tự)"]
+    V --> W["Remove disguises<br/>(variable names, comments, order)"]
     W --> X["Winnowing:<br/>k-grams → Fingerprint"]
-    X --> Y["So khớp với tất cả<br/>bài nộp trong Assignment"]
+    X --> Y["Match against all<br/>submissions in Assignment"]
     Y --> Z{"Similarity<br/>> 80%?"}
-    Z -->|"🚨 Nghi đạo văn"| AA["Gắn cờ<br/>PLAGIARISM_DETECTED"]
-    Z -->|"✅ Bình thường"| AB["Lưu fingerprint<br/>vào DB"]
+    Z -->|"🚨 Suspected plagiarism"| AA["Flag as<br/>PLAGIARISM_DETECTED"]
+    Z -->|"✅ Normal"| AB["Store fingerprint<br/>in DB"]
     AA --> AB
 
-    AB --> AC["🤖 AI đánh giá<br/>Clean Code + SOLID"]
-    AC --> AD["Tổng hợp điểm cuối cùng:<br/>Test (40%) + AST (30%) + Clean Code (30%)"]
-    AD --> AE["Cập nhật Submission<br/>status = COMPLETED"]
-    AE --> AF["📡 Gửi kết quả<br/>qua WebSocket"]
-    AF --> AG(["🔴 Kết thúc"])
+    AB --> AC["🤖 AI evaluates<br/>Clean Code + SOLID"]
+    AC --> AD["Aggregate final score:<br/>Test (40%) + AST (30%) + Clean Code (30%)"]
+    AD --> AE["Update Submission<br/>status = COMPLETED"]
+    AE --> AF["📡 Send results<br/>via WebSocket"]
+    AF --> AG(["🔴 End"])
     P --> AF
     S --> AF
 ```
 
-### 6.3. Sơ đồ tuần tự (Sequence Diagram) - Luồng chấm bài qua API
+### 6.3. Sequence Diagram – Submission Grading API Flow
 
 ```mermaid
 sequenceDiagram
@@ -359,122 +359,122 @@ sequenceDiagram
     participant AI as GenAI Service
     participant DB as PostgreSQL
 
-    Student->>WebApp: Tải lên file .zip & Nộp bài
+    Student->>WebApp: Upload .zip file & Submit assignment
     WebApp->>Gateway: POST /api/submissions (FormData)
     
-    Gateway->>DB: Tạo bản ghi Submission (status: PENDING)
-    DB-->>Gateway: Trả về submission_id
+    Gateway->>DB: Create Submission record (status: PENDING)
+    DB-->>Gateway: Return submission_id
     
     Gateway->>Redis: Enqueue Job (submission_id, file_url)
     Redis-->>Gateway: Job_id
     Gateway-->>WebApp: HTTP 202 Accepted (submission_id)
-    WebApp-->>Student: Hiển thị trạng thái "Đang chờ chấm..."
+    WebApp-->>Student: Display status "Grading in progress..."
 
     Redis-)Sandbox: Worker picks up Job
     
     rect rgb(240, 248, 255)
-        note right of Sandbox: Phase 1: Biên dịch & Chạy Test
-        Sandbox->>Sandbox: Khởi tạo Container cô lập
-        Sandbox->>Sandbox: Giải nén & Biên dịch code
-        Sandbox->>Sandbox: Chạy các Test Cases (StdIn)
-        Sandbox-->>Sandbox: Thu thập StdOut / StdErr
+        note right of Sandbox: Phase 1: Compile & Run Tests
+        Sandbox->>Sandbox: Initialize isolated Container
+        Sandbox->>Sandbox: Extract & Compile code
+        Sandbox->>Sandbox: Run Test Cases (StdIn)
+        Sandbox-->>Sandbox: Collect StdOut / StdErr
     end
 
     rect rgb(240, 255, 240)
-        note right of Sandbox: Phase 2: Chống đạo văn (AST)
-        Sandbox->>AST: Gọi nội bộ (gửi source code)
-        AST->>AST: Tạo Cây cú pháp (AST)
-        AST->>AST: Băm Winnowing tạo Fingerprint
-        AST->>DB: So sánh Fingerprint với các bài cũ
-        DB-->>AST: Trả về Similarity %
-        AST-->>Sandbox: Kết quả đạo văn
+        note right of Sandbox: Phase 2: Plagiarism Detection (AST)
+        Sandbox->>AST: Internal call (send source code)
+        AST->>AST: Build Abstract Syntax Tree (AST)
+        AST->>AST: Winnowing hash to create Fingerprint
+        AST->>DB: Compare Fingerprint with previous submissions
+        DB-->>AST: Return Similarity %
+        AST-->>Sandbox: Plagiarism result
     end
 
     rect rgb(255, 245, 238)
         note right of Sandbox: Phase 3: AI Code Review
-        Sandbox->>AI: Gửi source code + test results
-        AI->>AI: Prompt Engineering & Gọi OpenAI/Gemini
-        AI-->>Sandbox: Trả về Clean Code Feedbacks
+        Sandbox->>AI: Send source code + test results
+        AI->>AI: Prompt Engineering & Call OpenAI/Gemini
+        AI-->>Sandbox: Return Clean Code Feedback
     end
 
-    Sandbox->>DB: Cập nhật Submission (tổng điểm, AI feedback, trạng thái COMPLETED)
+    Sandbox->>DB: Update Submission (total score, AI feedback, status COMPLETED)
     DB-->>Sandbox: OK
     
-    Sandbox-)Gateway: Push Event (Job Completed) qua WebSocket
+    Sandbox-)Gateway: Push Event (Job Completed) via WebSocket
     Gateway-)WebApp: Emit WebSocket (Real-time update)
-    WebApp-->>Student: Hiển thị kết quả chấm điểm (3 Cards)
+    WebApp-->>Student: Display grading results (3 Cards)
 ```
 
-### 6.4. Các sơ đồ State (Trạng thái)
+### 6.4. State Diagrams
 
-#### 6.4.1. Vòng đời bài nộp (Submission Lifecycle)
+#### 6.4.1. Submission Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: Student nộp file .zip
+    [*] --> PENDING: Student uploads .zip file
 
-    PENDING --> QUEUED: Đẩy vào Redis Queue thành công
-    PENDING --> UPLOAD_ERROR: File upload thất bại
+    PENDING --> QUEUED: Successfully pushed to Redis Queue
+    PENDING --> UPLOAD_ERROR: File upload failed
 
-    QUEUED --> BUILDING: Docker Sandbox nhận job,<br/>tạo container
-    QUEUED --> QUEUE_ERROR: Redis timeout / Queue full<br/>(Retry 3 lần rồi fail)
+    QUEUED --> BUILDING: Docker Sandbox receives job,<br/>creates container
+    QUEUED --> QUEUE_ERROR: Redis timeout / Queue full<br/>(Retry 3 times then fail)
 
-    BUILDING --> RUNNING_TESTS: Biên dịch thành công,<br/>bắt đầu chạy test cases
-    BUILDING --> COMPILATION_ERROR: Code không biên dịch được
+    BUILDING --> RUNNING_TESTS: Compilation successful,<br/>start running test cases
+    BUILDING --> COMPILATION_ERROR: Code failed to compile
 
-    RUNNING_TESTS --> ANALYZING_AST: Tất cả test cases đã chạy xong
-    RUNNING_TESTS --> TIMEOUT: Chạy quá 30 giây
-    RUNNING_TESTS --> SECURITY_VIOLATION: Phát hiện mã độc<br/>(fork bomb, read host files)
+    RUNNING_TESTS --> ANALYZING_AST: All test cases completed
+    RUNNING_TESTS --> TIMEOUT: Execution exceeded 30 seconds
+    RUNNING_TESTS --> SECURITY_VIOLATION: Malware detected<br/>(fork bomb, read host files)
 
-    ANALYZING_AST --> REVIEWING_AI: AST + Winnowing hoàn tất,<br/>fingerprint đã lưu
-    ANALYZING_AST --> PLAGIARISM_DETECTED: Similarity > 80%,<br/>gắn cờ nghi vấn
+    ANALYZING_AST --> REVIEWING_AI: AST + Winnowing complete,<br/>fingerprint saved
+    ANALYZING_AST --> PLAGIARISM_DETECTED: Similarity > 80%,<br/>flagged as suspicious
 
-    PLAGIARISM_DETECTED --> REVIEWING_AI: Vẫn tiếp tục chấm<br/>(nhưng có cảnh báo)
+    PLAGIARISM_DETECTED --> REVIEWING_AI: Continue grading<br/>(with warning)
 
-    REVIEWING_AI --> COMPLETED: AI đã chấm Clean Code<br/>+ giải thích lỗi xong
+    REVIEWING_AI --> COMPLETED: AI Clean Code review<br/>+ error explanation done
 
-    COMPILATION_ERROR --> COMPLETED: AI giải thích lỗi<br/>biên dịch xong
-    TIMEOUT --> COMPLETED: Ghi nhận lỗi timeout
-    SECURITY_VIOLATION --> COMPLETED: Ghi nhận vi phạm bảo mật
+    COMPILATION_ERROR --> COMPLETED: AI compilation error<br/>explanation done
+    TIMEOUT --> COMPLETED: Timeout error recorded
+    SECURITY_VIOLATION --> COMPLETED: Security violation recorded
 
-    COMPLETED --> APPEALED: Sinh viên gửi<br/>đơn kháng cáo
-    APPEALED --> COMPLETED: Giảng viên xử lý<br/>kháng cáo xong
+    COMPLETED --> APPEALED: Student submits<br/>an appeal
+    APPEALED --> COMPLETED: Lecturer resolves<br/>the appeal
 
     UPLOAD_ERROR --> [*]
     QUEUE_ERROR --> [*]
     COMPLETED --> [*]
 ```
 
-#### 6.4.2. Vòng đời Request GenAI (GenAI Lifecycle)
+#### 6.4.2. GenAI Request Lifecycle
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT: Giảng viên bắt đầu tạo prompt
-    DRAFT --> REQUESTING: Gửi prompt đến LLM API
-    REQUESTING --> SUCCESS: API trả kết quả thành công
-    REQUESTING --> RATE_LIMITED: API giới hạn (Too many requests)
-    REQUESTING --> ERROR: Lỗi API / Timeout
-    RATE_LIMITED --> REQUESTING: Retry bằng API Key dự phòng (Round-robin)
-    ERROR --> DRAFT: Báo lỗi cho giảng viên
-    SUCCESS --> SAVED: Giảng viên duyệt & lưu đề bài
+    [*] --> DRAFT: Lecturer starts creating prompt
+    DRAFT --> REQUESTING: Send prompt to LLM API
+    REQUESTING --> SUCCESS: API returns result successfully
+    REQUESTING --> RATE_LIMITED: API rate limit (Too many requests)
+    REQUESTING --> ERROR: API Error / Timeout
+    RATE_LIMITED --> REQUESTING: Retry with backup API Key (Round-robin)
+    ERROR --> DRAFT: Report error to lecturer
+    SUCCESS --> SAVED: Lecturer approves & saves assignment
     SAVED --> [*]
 ```
 
-#### 6.4.3. Vòng đời phân tích Git (Git Analytics Process)
+#### 6.4.3. Git Analytics Process Lifecycle
 ```mermaid
 stateDiagram-v2
-    [*] --> CLONING: Bắt đầu clone Git Repo
-    CLONING --> PARSING_COMMITS: Clone thành công, đọc Git History
-    CLONING --> REPO_NOT_FOUND: Sai URL / Không có quyền truy cập
-    PARSING_COMMITS --> CALCULATING_LOC: Phân tách commits theo thành viên
-    CALCULATING_LOC --> EVALUATING: Đếm LOC (Added, Removed)
-    EVALUATING --> COMPLETED: Lưu báo cáo phân tích vào DB
-    EVALUATING --> FREE_RIDER_DETECTED: Phát hiện đóng góp < 5%
-    FREE_RIDER_DETECTED --> COMPLETED: Đánh dấu cờ (Flag)
+    [*] --> CLONING: Start cloning Git Repo
+    CLONING --> PARSING_COMMITS: Clone successful, reading Git History
+    CLONING --> REPO_NOT_FOUND: Wrong URL / No access permission
+    PARSING_COMMITS --> CALCULATING_LOC: Separate commits by team member
+    CALCULATING_LOC --> EVALUATING: Count LOC (Added, Removed)
+    EVALUATING --> COMPLETED: Save analysis report to DB
+    EVALUATING --> FREE_RIDER_DETECTED: Contribution detected < 5%
+    FREE_RIDER_DETECTED --> COMPLETED: Flag marked
     REPO_NOT_FOUND --> [*]
     COMPLETED --> [*]
 ```
 
-### 6.5. Sơ đồ ERD (Entity-Relationship Diagram)
+### 6.5. ERD (Entity-Relationship Diagram)
 
 ```mermaid
 erDiagram
@@ -559,193 +559,193 @@ erDiagram
     USERS ||--o{ APPEALS : "creates / resolves"
 ```
 
-### 6.6. Data Dictionary (Từ điển dữ liệu)
+### 6.6. Data Dictionary
 
-| Bảng (Table) | Cột (Column) | Kiểu dữ liệu | Ràng buộc (Constraints) | Mô tả |
+| Table | Column | Data Type | Constraints | Description |
 |---|---|---|---|---|
-| **USERS** | `id` | UUID | PK | Khóa chính, định danh người dùng |
-| | `email` | VARCHAR(255) | UNIQUE, NOT NULL | Email FPT để đăng nhập |
-| | `password_hash` | VARCHAR(255) | | Mật khẩu (nếu dùng đăng nhập truyền thống) |
-| | `full_name` | VARCHAR(100) | NOT NULL | Họ tên đầy đủ |
-| | `role` | ENUM | NOT NULL | Vai trò: STUDENT, LECTURER, ADMIN |
-| **CLASSES** | `id` | UUID | PK | Khóa chính lớp học |
-| | `class_code` | VARCHAR(50) | NOT NULL | Mã lớp (VD: SE1801) |
-| | `lecturer_id` | UUID | FK -> USERS(id) | Giảng viên phụ trách lớp |
-| **CLASS_STUDENTS**| `class_id` | UUID | FK -> CLASSES(id) | Khóa ngoại lớp học |
-| | `student_id` | UUID | FK -> USERS(id) | Khóa ngoại sinh viên |
-| **ASSIGNMENTS** | `id` | UUID | PK | Khóa chính bài tập |
-| | `class_id` | UUID | FK -> CLASSES(id) | Khóa ngoại lớp học |
-| | `title` | VARCHAR(255) | NOT NULL | Tiêu đề bài tập |
-| | `deadline` | TIMESTAMP | NOT NULL | Hạn chót nộp bài |
-| | `grading_criteria`| JSONB | | Tiêu chí chấm điểm do AI tạo |
-| **TEST_CASES** | `id` | UUID | PK | Khóa chính test case |
-| | `assignment_id` | UUID | FK -> ASSIGNMENTS(id)| Thuộc bài tập nào |
-| | `input_data` | TEXT | | Đầu vào (StdIn) |
-| | `expected_output`| TEXT | | Đầu ra mong đợi (StdOut) |
-| | `score_weight` | INT | NOT NULL | Trọng số điểm |
-| **SUBMISSIONS** | `id` | UUID | PK | Khóa chính bài nộp |
-| | `student_id` | UUID | FK -> USERS(id) | Người nộp bài |
-| | `file_url` | VARCHAR(255) | NOT NULL | Link file .zip (S3/Local) |
-| | `status` | ENUM | NOT NULL | Trạng thái (PENDING, QUEUED, COMPLETED...) |
-| | `total_score` | FLOAT | | Tổng điểm |
-| | `ai_feedback` | TEXT | | Đánh giá Clean Code từ AI |
-| **AST_FINGERPRINTS**| `id` | UUID | PK | Khóa chính chữ ký AST |
-| | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Chữ ký của bài nộp nào |
-| | `fingerprint_data`| JSONB | NOT NULL | Mảng k-grams băm (Winnowing) |
-| | `similarity_score`| FLOAT | | % Trùng lặp cao nhất |
-| **APPEALS** | `id` | UUID | PK | Khóa chính đơn phúc khảo |
-| | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Kháng cáo bài nộp nào |
-| | `reason` | TEXT | NOT NULL | Lý do sinh viên kháng cáo |
-| | `status` | ENUM | DEFAULT 'PENDING' | Trạng thái (PENDING, APPROVED, REJECTED) |
-| | `lecturer_response`| TEXT | | Phản hồi của giảng viên |
+| **USERS** | `id` | UUID | PK | Primary key, user identifier |
+| | `email` | VARCHAR(255) | UNIQUE, NOT NULL | FPT email for login |
+| | `password_hash` | VARCHAR(255) | | Password (if using traditional login) |
+| | `full_name` | VARCHAR(100) | NOT NULL | Full name |
+| | `role` | ENUM | NOT NULL | Role: STUDENT, LECTURER, ADMIN |
+| **CLASSES** | `id` | UUID | PK | Primary key, class identifier |
+| | `class_code` | VARCHAR(50) | NOT NULL | Class code (e.g., SE1801) |
+| | `lecturer_id` | UUID | FK -> USERS(id) | Lecturer in charge of the class |
+| **CLASS_STUDENTS**| `class_id` | UUID | FK -> CLASSES(id) | Foreign key to class |
+| | `student_id` | UUID | FK -> USERS(id) | Foreign key to student |
+| **ASSIGNMENTS** | `id` | UUID | PK | Primary key, assignment identifier |
+| | `class_id` | UUID | FK -> CLASSES(id) | Foreign key to class |
+| | `title` | VARCHAR(255) | NOT NULL | Assignment title |
+| | `deadline` | TIMESTAMP | NOT NULL | Submission deadline |
+| | `grading_criteria`| JSONB | | AI-generated grading criteria |
+| **TEST_CASES** | `id` | UUID | PK | Primary key, test case identifier |
+| | `assignment_id` | UUID | FK -> ASSIGNMENTS(id)| Belongs to which assignment |
+| | `input_data` | TEXT | | Input (StdIn) |
+| | `expected_output`| TEXT | | Expected output (StdOut) |
+| | `score_weight` | INT | NOT NULL | Score weight |
+| **SUBMISSIONS** | `id` | UUID | PK | Primary key, submission identifier |
+| | `student_id` | UUID | FK -> USERS(id) | Submitter |
+| | `file_url` | VARCHAR(255) | NOT NULL | File link .zip (S3/Local) |
+| | `status` | ENUM | NOT NULL | Status (PENDING, QUEUED, COMPLETED...) |
+| | `total_score` | FLOAT | | Total score |
+| | `ai_feedback` | TEXT | | AI Clean Code feedback |
+| **AST_FINGERPRINTS**| `id` | UUID | PK | Primary key, AST fingerprint identifier |
+| | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Fingerprint of which submission |
+| | `fingerprint_data`| JSONB | NOT NULL | Winnowing k-gram hash array |
+| | `similarity_score`| FLOAT | | Highest similarity % |
+| **APPEALS** | `id` | UUID | PK | Primary key, appeal identifier |
+| | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Appeal for which submission |
+| | `reason` | TEXT | NOT NULL | Student's appeal reason |
+| | `status` | ENUM | DEFAULT 'PENDING' | Status (PENDING, APPROVED, REJECTED) |
+| | `lecturer_response`| TEXT | | Lecturer's response |
 
 ---
 
-## 7. Yêu cầu phi chức năng (Non-Functional Requirements)
+## 7. Non-Functional Requirements
 
-### 7.1. Bảo mật (Security)
+### 7.1. Security
 
-| ID | Yêu cầu | Tiêu chí đo lường |
+| ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-01** | Docker Sandbox phải cô lập hoàn toàn tài nguyên | RAM ≤ 512MB, CPU shares giới hạn, **mạng ngoài bị ngắt 100%** |
-| **NFR-02** | Sandbox phải chống được mã độc phổ biến | Chặn: fork bomb, symlink escape, /proc mount, disk exhaustion |
-| **NFR-03** | Xác thực JWT phải được lưu trong HttpOnly Cookie | Cookie không thể truy cập từ JavaScript (chống XSS) |
-| **NFR-04** | Google SSO chỉ chấp nhận miền email FPT | Whitelist: `@fpt.edu.vn`, `@fe.edu.vn` |
-| **NFR-05** | API keys (OpenAI, Gemini) không được hard-code | Lưu trong biến môi trường (.env), không commit lên Git |
-| **NFR-18** | **(P2P Defense)** Hệ thống ghi log chi tiết mọi lần chạy Sandbox | Log bao gồm: `submission_id`, `start_time`, `end_time`, `exit_code`, `resource_usage` (RAM/CPU peak), `security_alert`. Lưu tối thiểu 30 ngày. |
+| **NFR-01** | Docker Sandbox must completely isolate resources | RAM ≤ 512MB, limited CPU shares, **external network 100% disabled** |
+| **NFR-02** | Sandbox must defend against common malware | Block: fork bomb, symlink escape, /proc mount, disk exhaustion |
+| **NFR-03** | JWT authentication must be stored in HttpOnly Cookie | Cookie inaccessible from JavaScript (XSS prevention) |
+| **NFR-04** | Google SSO must only accept FPT email domains | Whitelist: `@fpt.edu.vn`, `@fe.edu.vn` |
+| **NFR-05** | API keys (OpenAI, Gemini) must not be hard-coded | Store in environment variables (.env), never commit to Git |
+| **NFR-18** | **(P2P Defense)** System must log every Sandbox execution in detail | Log includes: `submission_id`, `start_time`, `end_time`, `exit_code`, `resource_usage` (RAM/CPU peak), `security_alert`. Retain for minimum 30 days. |
 
-### 7.2. Hiệu năng (Performance)
+### 7.2. Performance
 
-| ID | Yêu cầu | Tiêu chí đo lường |
+| ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-06** | Thời gian phản hồi API trung bình | ≤ 200ms cho các API thông thường (CRUD) |
-| **NFR-07** | Thời gian chấm điểm 1 bài nộp (end-to-end) | ≤ 90 giây (bao gồm: Docker + AST + AI) |
-| **NFR-08** | Hệ thống phải chịu tải đồng thời | ≥ 100 requests/phút (stress test bằng k6 hoặc JMeter) |
-| **NFR-09** | Kết quả chấm phải cache | Cache Redis cho API kết quả, TTL = 5 phút, response ≤ 100ms |
+| **NFR-06** | Average API response time | ≤ 200ms for standard APIs (CRUD) |
+| **NFR-07** | End-to-end grading time per submission | ≤ 90 seconds (includes: Docker + AST + AI) |
+| **NFR-08** | System must handle concurrent load | ≥ 100 requests/minute (stress test with k6 or JMeter) |
+| **NFR-09** | Grading results must be cached | Redis cache for result APIs, TTL = 5 minutes, response ≤ 100ms |
 
-### 7.3. Khả năng mở rộng (Scalability)
+### 7.3. Scalability
 
-| ID | Yêu cầu | Tiêu chí đo lường |
+| ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-10** | Redis Queue phải hỗ trợ batch grading | Xử lý ≥ 50 bài nộp đồng thời mà không block API gateway |
-| **NFR-11** | Hệ thống phải hỗ trợ thêm ngôn ngữ lập trình mới | Chỉ cần thêm 1 Dockerfile mới vào thư mục `docker-templates/` |
+| **NFR-10** | Redis Queue must support batch grading | Process ≥ 50 concurrent submissions without blocking API gateway |
+| **NFR-11** | System must support adding new programming languages | Only need to add 1 new Dockerfile to `docker-templates/` directory |
 
-### 7.4. Độ tin cậy (Reliability)
+### 7.4. Reliability
 
-| ID | Yêu cầu | Tiêu chí đo lường |
+| ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-12** | Bulk import sinh viên phải dùng DB Transaction | Import thành công toàn bộ HOẶC rollback hoàn toàn (ACID) |
-| **NFR-13** | Redis Queue phải có cơ chế retry | Retry tối đa 3 lần với exponential backoff |
-| **NFR-14** | Docker container phải tự hủy sau khi xong | Không để container zombie tồn tại trên server |
+| **NFR-12** | Bulk student import must use DB Transaction | Import all successfully OR rollback entirely (ACID) |
+| **NFR-13** | Redis Queue must have retry mechanism | Max 3 retries with exponential backoff |
+| **NFR-14** | Docker containers must self-destruct after completion | No zombie containers left on the server |
 
-### 7.5. Khả năng sử dụng (Usability)
+### 7.5. Usability
 
-| ID | Yêu cầu | Tiêu chí đo lường |
+| ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-15** | Giao diện responsive trên cả Web và Mobile | Hỗ trợ: Desktop (≥ 1024px), Tablet (≥ 768px), Mobile (≥ 375px) |
-| **NFR-16** | Cập nhật kết quả realtime không cần reload | Sử dụng WebSocket (Socket.IO) |
-| **NFR-17** | Giải thích lỗi biên dịch bằng tiếng Việt | AI trả về giải thích bằng ngôn ngữ tự nhiên tiếng Việt |
+| **NFR-15** | Responsive interface on both Web and Mobile | Support: Desktop (≥ 1024px), Tablet (≥ 768px), Mobile (≥ 375px) |
+| **NFR-16** | Real-time result updates without page reload | Using WebSocket (Socket.IO) |
+| **NFR-17** | Compilation error explanations in Vietnamese | AI returns explanations in Vietnamese natural language |
 
 ---
 
-## 8. Ràng buộc hệ thống (System Constraints)
+## 8. System Constraints
 
-### 8.1. Ràng buộc công nghệ
-- **Frontend Web:** React 18+ với Vite, TailwindCSS
+### 8.1. Technology Constraints
+- **Frontend Web:** React 18+ with Vite, TailwindCSS
 - **Frontend Mobile:** React Native / Expo
-- **Backend:** Node.js 20+ với TypeScript, Prisma ORM
-- **AST Engine:** Python 3.11+ với FastAPI
+- **Backend:** Node.js 20+ with TypeScript, Prisma ORM
+- **AST Engine:** Python 3.11+ with FastAPI
 - **Database:** PostgreSQL 15+
-- **Message Queue:** Redis 7+ với BullMQ
+- **Message Queue:** Redis 7+ with BullMQ
 - **Container Runtime:** Docker Engine 24+
 - **CI/CD:** GitHub Actions
-- **Cloud Deploy:** Azure / AWS / Vercel (tùy nhóm chọn)
+- **Cloud Deploy:** Azure / AWS / Vercel (team's choice)
 
-### 8.2. Ràng buộc nghiệp vụ
-- Hệ thống chỉ phục vụ sinh viên và giảng viên thuộc FPT University (kiểm tra bằng email domain).
-- Mỗi bài nộp chỉ được phép tối đa 10MB (file .zip).
-- Thời gian thực thi code tối đa 30 giây/bài nộp.
-- API key OpenAI/Gemini sử dụng cơ chế xoay vòng (round-robin) để tránh rate limit.
+### 8.2. Business Constraints
+- The system only serves students and lecturers belonging to FPT University (verified by email domain).
+- Each submission is limited to a maximum of 10MB (.zip file).
+- Maximum code execution time is 30 seconds per submission.
+- OpenAI/Gemini API keys use round-robin rotation to avoid rate limits.
 
-### 8.3. Ràng buộc dự án
-- Thời gian phát triển: 10 tuần.
-- Nhóm phát triển: 4-6 sinh viên.
-- Code phải đạt linting (ESLint/Prettier cho TypeScript, Flake8 cho Python).
-- Unit Test coverage ≥ 80% trên các module cốt lõi (yêu cầu từ Milestone 3).
+### 8.3. Project Constraints
+- Development timeline: 10 weeks.
+- Development team: 4-6 students.
+- Code must pass linting (ESLint/Prettier for TypeScript, Flake8 for Python).
+- Unit test coverage ≥ 80% on core modules (required from Milestone 3).
 
 ---
 
-## 9. Phụ lục – Nhật ký sử dụng AI (AI Validation Logs)
+## 9. Appendix – AI Validation Logs
 
-> **Hướng dẫn:** Nhóm phát triển ghi lại tất cả các lần sử dụng AI (ChatGPT, Gemini, Copilot...) trong quá trình phân tích, thiết kế và phát triển. Mỗi log bao gồm: ngày, công cụ AI, mục đích sử dụng, prompt đầu vào, và kết quả đánh giá.
+> **Instructions:** The development team records all instances of AI usage (ChatGPT, Gemini, Copilot...) during the analysis, design, and development process. Each log includes: date, AI tool, purpose of use, input prompt, and evaluation of results.
 
 ### Log #1
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) |
-| **Mục đích** | Phân tích Syllabus và tạo cây thư mục dự án |
-| **Prompt đầu vào** | "Tôi đang bắt đầu 1 dự án mới, bạn có thể xem thử file md RBL_Syllabus_AITA_10Weeks.md... phác thảo cây thư mục của dự án này giúp tôi" |
-| **Kết quả AI trả về** | AI đã đọc hiểu file Syllabus, đề xuất cấu trúc Monorepo chia thành `apps` (api-gateway, web, sandbox, ast) và `docs`. |
-| **Đánh giá của nhóm** | Chấp nhận 100%. Cấu trúc rất chuẩn xác cho dự án P2P Review. |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 1 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) |
+| **Purpose** | Analyze Syllabus and create project directory structure |
+| **Input Prompt** | "I am starting a new project, can you review the file md RBL_Syllabus_AITA_10Weeks.md... sketch the directory tree for this project" |
+| **AI Output** | AI read and understood the Syllabus file, proposed a Monorepo structure divided into `apps` (api-gateway, web, sandbox, ast) and `docs`. |
+| **Team Evaluation** | Accepted 100%. Structure is highly accurate for a P2P Review project. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #1 here]* |
 
 ### Log #2
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) |
-| **Mục đích** | Sinh danh sách User Stories cho tài liệu SRS |
-| **Prompt đầu vào** | "Bây giờ tôi với bạn sẽ phụ trách mục thứ 2... lên cho tôi plan trước để tôi có thể xem trước khi duyệt" |
-| **Kết quả AI trả về** | AI sinh ra 15 User Stories chi tiết chia cho Student, Lecturer và System/Admin. |
-| **Đánh giá của nhóm** | Vượt yêu cầu Rubric (≥12). Nội dung bao quát toàn bộ 5 phân hệ cốt lõi. |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 2 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) |
+| **Purpose** | Generate User Stories list for SRS document |
+| **Input Prompt** | "Now I and you will work on item #2... create a plan for me to review before approval" |
+| **AI Output** | AI generated 15 detailed User Stories divided among Student, Lecturer, and System/Admin. |
+| **Team Evaluation** | Exceeds Rubric requirements (≥12). Content covers all 5 core subsystems. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #2 here]* |
 
 ### Log #3
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) |
-| **Mục đích** | Sinh code sơ đồ UML (Use Case, Activity, State) bằng Mermaid |
-| **Prompt đầu vào** | Tự động sinh dựa trên task "UML Use Case Diagram đầy đủ, Activity Diagram, State Diagram" |
-| **Kết quả AI trả về** | AI viết mã Markdown tích hợp Mermaid để vẽ trực tiếp sơ đồ luồng Nộp bài và trạng thái vòng đời Submission. |
-| **Đánh giá của nhóm** | Code Mermaid chính xác, render đẹp trên GitHub, đúng yêu cầu quy trình nộp bài. |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 3 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) |
+| **Purpose** | Generate UML diagram code (Use Case, Activity, State) using Mermaid |
+| **Input Prompt** | Auto-generated based on task "Complete UML Use Case Diagram, Activity Diagram, State Diagram" |
+| **AI Output** | AI wrote Markdown code with integrated Mermaid to directly draw submission flow diagrams and Submission lifecycle state diagrams. |
+| **Team Evaluation** | Mermaid code is accurate, renders well on GitHub, meets submission flow requirements. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #3 here]* |
 
 ### Log #4
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) - Image Generation |
-| **Mục đích** | Tạo Mockup UI và thiết kế Screen Flow Map |
-| **Prompt đầu vào** | "Sử dụng công cụ AI sinh ảnh để tạo ra các bản thiết kế mockup UI mẫu... Bạn có thể gen ảnh screen flow và bỏ vào dự án" |
-| **Kết quả AI trả về** | AI sinh ra 4 ảnh giao diện (Login, Dashboard, Submission, Results) phong cách Glassmorphism và 1 ảnh User Flow diagram. |
-| **Đánh giá của nhóm** | Ảnh rất chuyên nghiệp, đáp ứng được yêu cầu "Aesthetics" hiện đại. Làm tư liệu tham khảo tốt để vẽ Figma. |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 4 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) - Image Generation |
+| **Purpose** | Create UI Mockups and Screen Flow Map design |
+| **Input Prompt** | "Use AI image generation tool to create sample UI mockup designs... Generate screen flow images and add to project" |
+| **AI Output** | AI generated 4 interface images (Login, Dashboard, Submission, Results) in Glassmorphism style and 1 User Flow diagram image. |
+| **Team Evaluation** | Images are very professional, meeting modern "Aesthetics" requirements. Good reference material for Figma design. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #4 here]* |
 
 ### Log #5
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) |
-| **Mục đích** | Thiết kế Sơ đồ Cơ sở dữ liệu (ERD) và Data Dictionary |
-| **Prompt đầu vào** | "Có vài thứ cần cải thiện, bạn xem qua nhé (Ảnh góp ý thiếu ERD, bảng Appeals, Data Dictionary)" |
-| **Kết quả AI trả về** | AI tạo sơ đồ ERD bằng Mermaid với 8 bảng (có bảng Appeals) và một bảng Data Dictionary chi tiết từng cột. |
-| **Đánh giá của nhóm** | Đã lấp đầy lỗ hổng Rubric (ERD ≥ 8 entities). Chuẩn hóa được ràng buộc khóa ngoại (FK). |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 5 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) |
+| **Purpose** | Design Database Schema (ERD) and Data Dictionary |
+| **Input Prompt** | "There are a few things to improve, please review (Screenshots suggesting missing ERD, Appeals table, Data Dictionary)" |
+| **AI Output** | AI created an ERD diagram using Mermaid with 8 tables (including Appeals table) and a detailed Data Dictionary for each column. |
+| **Team Evaluation** | Filled the Rubric gap (ERD ≥ 8 entities). Standardized foreign key (FK) constraints. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #5 here]* |
 
 ### Log #6
-| Thuộc tính | Nội dung |
+| Attribute | Content |
 |---|---|
-| **Ngày** | 07/09/2026 |
-| **Công cụ AI** | Gemini 3.1 Pro (High) |
-| **Mục đích** | Bổ sung Yêu cầu phi chức năng (NFR) cho P2P Defense |
-| **Prompt đầu vào** | "Có vài thứ cần cải thiện, bạn xem qua nhé (Ảnh góp ý thiếu NFR về Monitoring/Logging cho P2P Defense)" |
-| **Kết quả AI trả về** | AI tạo mã NFR-18 yêu cầu lưu log chi tiết mọi lần chạy Docker Sandbox (exit_code, RAM/CPU) tối thiểu 30 ngày. |
-| **Đánh giá của nhóm** | Đây là tính năng sống còn để đối phó với việc bị nhóm khác tấn công mã độc. Đề xuất hoàn hảo. |
-| **Ảnh minh chứng** | *[Nhóm tự chèn ảnh chụp màn hình chat AI số 6 vào đây]* |
+| **Date** | 09/07/2026 |
+| **AI Tool** | Gemini 3.1 Pro (High) |
+| **Purpose** | Add Non-Functional Requirements (NFR) for P2P Defense |
+| **Input Prompt** | "There are a few things to improve, please review (Screenshots suggesting missing NFR for Monitoring/Logging for P2P Defense)" |
+| **AI Output** | AI created NFR-18 requiring detailed logging of every Docker Sandbox execution (exit_code, RAM/CPU) for a minimum of 30 days. |
+| **Team Evaluation** | This is a critical feature to defend against malware attacks from other teams. Perfect recommendation. |
+| **Evidence Screenshot** | *[Team inserts AI chat screenshot #6 here]* |
 
 ---
 
-**Kết thúc tài liệu SRS – Phiên bản 1.0**
-**Nhóm phát triển: SWP391 – Group 3**
+**End of SRS Document – Version 1.0**
+**Development Team: SWP391 – Group 3**
