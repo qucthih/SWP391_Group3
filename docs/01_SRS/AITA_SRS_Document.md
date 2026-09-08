@@ -98,8 +98,8 @@ graph TB
 
     subgraph "Processing Layer"
         REDIS["📦 Redis Queue<br/>(BullMQ)"]
-        SANDBOX["🐳 Docker Sandbox<br/>(Autograding Engine)"]
-        AST["🌳 AST Engine<br/>(Python - Plagiarism Detection)"]
+        SANDBOX["Code Execution Engine<br/>(Judge0 / Piston)"]
+        AST["AST Engine<br/>(Java - Plagiarism Detection)"]
         LLM["🤖 GenAI Service<br/>(GPT-4o / Gemini API)"]
         GIT["📊 Git Analytics<br/>(Commit Parser + LOC)"]
     end
@@ -195,18 +195,18 @@ graph LR
 |---|---|---|---|
 | **US-06** | As a **lecturer**, I want to **create a new class and import student lists from an Excel file**, to save time on manual data entry. | - Upload .xlsx file, system auto-parses columns: Student ID, Full Name, Email<br/>- Use DB Transaction to ensure full import or rollback on error<br/>- Report successful/failed import counts | 🔴 High |
 | **US-07** | As a **lecturer**, I want to **create Assignments with test cases** (StdIn/StdOut format), so the system can automatically grade student submissions. | - Input title, description, deadline<br/>- Add multiple test cases (each with: Input, Expected Output, score weight)<br/>- Select programming language for Sandbox (Java, Python, C#) | 🔴 High |
-| **US-08** | As a **lecturer**, I want to **request AI to automatically generate assignments and grading rubrics** from my brief description, to reduce assignment preparation time. | - Lecturer enters a prompt describing the topic (e.g., "Assignment on linked list")<br/>- AI returns: complete assignment, sample input/output, grading rubric<br/>- Lecturer can edit before saving | 🟡 Medium |
+| **US-08** | *(Simplified – MVP)* As a **lecturer**, I want to **request AI to generate a basic assignment draft** from my brief description, to reduce assignment preparation time. | - Lecturer enters a prompt describing the topic (e.g., "Assignment on linked list")<br/>- AI returns: basic assignment description and sample test cases<br/>- Lecturer must review and finalize before saving<br/>- *MVP Note: Full rubric auto-generation is a stretch goal* | 🟡 Medium |
 | **US-09** | As a **lecturer**, I want to **view a Dashboard with overview statistics** (submission rate, score distribution, plagiarism suspects) for each assignment, to quickly assess class performance. | - Pie chart: submission rate<br/>- Bar chart: score distribution<br/>- Table: Top 10 submission pairs with highest similarity % (AST Plagiarism) | 🔴 High |
 | **US-10** | As a **lecturer**, I want to **handle student appeals** (Accept or Reject with reason), to ensure fairness in grading. | - List of Pending appeals<br/>- Review code + original grading results<br/>- Accept (re-grade) or Reject (with reason) button | 🟡 Medium |
-| **US-11** | As a **lecturer**, I want to **view Git Analytics reports** for each team member (commits, LOC, PRs), to evaluate individual contributions and detect free-riding. | - Input GitHub Repo URL of the team<br/>- Display: Total commits, LOC added/removed, PRs merged, contribution chart over time<br/>- Red warning if a member contributes < 5% | 🟡 Medium |
+| **US-11** | *(Simplified – MVP)* As a **lecturer**, I want to **view basic Git Analytics** for each team member (commits, LOC), to get a high-level view of individual contributions. | - Input GitHub Repo URL of the team<br/>- Display: Total commits, LOC added/removed per member<br/>- *MVP Note: PR analysis and contribution timeline charts are planned for future iterations* | 🟡 Medium |
 
 ### 4.3. System / AI / Docker Features
 
 | ID | User Story | Acceptance Criteria | Priority |
 |---|---|---|---|
 | **US-12** | As the **system**, when receiving a .zip submission file, I must **enqueue the submission into Redis (BullMQ)** for asynchronous processing, to avoid blocking the main API thread. | - Submission enqueued with metadata: submissionId, studentId, language<br/>- Queue has retry mechanism (max 3 retries) on job failure<br/>- API immediately returns status 202 Accepted | 🔴 High |
-| **US-13** | As the **Docker Sandbox system**, when receiving a job from Redis Queue, I must **create an isolated container** with limits: 512MB RAM, limited CPU shares, **completely disabled network access**, compile and run student code with test cases, then return results. | - Container self-destructs after completion or timeout (30 seconds)<br/>- Prevent: fork bomb, host file reads, disk quota overflow<br/>- Return results: Passed/Failed for each test case + stdout/stderr | 🔴 High |
-| **US-14** | As the **AST Engine system**, after Docker finishes grading, I must **convert source code to an AST, remove surface-level disguises** (variable names, comments, function order), **apply Winnowing** to create fingerprints, and **compare against all other submissions** in the same assignment to calculate similarity %. | - Support parsing: Python (`ast` module), C# (Roslyn), Java (ANTLR)<br/>- Remove: variable names, function names, comments, whitespace, function order<br/>- Winnowing: k-gram size = 25, window size = 40<br/>- Store fingerprints in `ASTFingerprints` table<br/>- Create Similarity Matrix: all submission pairs | 🔴 High |
+| **US-13** | As the **Code Execution Engine**, when receiving a job from Redis Queue, I must **execute student code in an isolated sandbox** (using Judge0/Piston) with limits: 512MB RAM, limited CPU, **disabled network access**, run with test cases, then return results. | - Sandbox auto-cleans after completion or timeout (30 seconds)<br/>- Judge0/Piston handles: process isolation, resource limiting, security<br/>- Return results: Passed/Failed for each test case + stdout/stderr | 🔴 High |
+| **US-14** | As the **AST Engine system**, after code execution finishes, I must **convert source code to an AST, remove surface-level disguises** (variable names, comments, function order), **apply Winnowing** to create fingerprints, and **compare against all other submissions** in the same assignment to calculate similarity %. | - **Primary language: Java** (ANTLR parser)<br/>- *Python/C# support planned for future iterations*<br/>- Remove: variable names, function names, comments, whitespace, function order<br/>- Winnowing: k-gram size = 25, window size = 40<br/>- Store fingerprints in `ASTFingerprints` table<br/>- Create Similarity Matrix: all submission pairs | 🔴 High |
 | **US-15** | As the **AI system (LLM)**, after Docker finishes grading, I must **evaluate source code quality** (Clean Code, SOLID, naming convention, layer architecture) and **explain compilation errors in Vietnamese natural language** so students can understand. | - Use GPT-4o or Gemini API (round-robin key rotation)<br/>- Chain-of-Thought + Few-Shot Learning prompts<br/>- Return: Clean Code score (0-100), specific comments per file, compilation error explanation if any<br/>- Timeout: max 60 seconds/request | 🟡 Medium |
 
 ---
@@ -599,6 +599,91 @@ erDiagram
 | | `status` | ENUM | DEFAULT 'PENDING' | Status (PENDING, APPROVED, REJECTED) |
 | | `lecturer_response`| TEXT | | Lecturer's response |
 
+### 6.7. UI Wireframes & Screen Flow
+
+This section describes the key screens of the AITA-Intelligent system, their layout, components, and the navigation flow between them.
+
+#### 6.7.1. Screen 1 — Login Page (Google SSO)
+
+![Login Page Mockup](../02_Design_Artefacts/UI_Mockups/mockup_01_login_page.jpg)
+
+| Attribute | Description |
+|---|---|
+| **URL** | `/login` |
+| **Layout** | Centered card on gradient background |
+| **Components** | FPT University logo, Application title "AITA-Intelligent", "Sign in with Google" button (primary CTA), Footer with version info |
+| **Actions** | Click "Sign in with Google" → Google OAuth 2.0 consent screen → Redirect to `/dashboard` on success |
+| **Validation** | Only `@fpt.edu.vn` and `@fe.edu.vn` email domains accepted. Others shown error toast. |
+
+#### 6.7.2. Screen 2 — Student Dashboard
+
+| Attribute | Description |
+|---|---|
+| **URL** | `/dashboard` (role: Student) |
+| **Layout** | Top navbar (avatar, notifications, logout) + Main content area with assignment cards |
+| **Components** | - **Assignment Cards:** Title, Class code, Deadline countdown, Status badge (Not Submitted / Submitted / Graded)<br/>- **Sort/Filter:** By deadline (nearest first), by status<br/>- **Quick Stats bar:** Total assignments, Submitted count, Average score |
+| **Actions** | Click card → Navigate to `/assignments/:id/submit`<br/>Click graded card → Navigate to `/submissions/:id/results` |
+| **Real-time** | WebSocket listens for grading completion events → Status badge auto-updates without page reload |
+
+#### 6.7.3. Screen 3 — Submission & Grading Results
+
+![Grading Results Mockup](../02_Design_Artefacts/UI_Mockups/mockup_04_grading_results.jpg)
+
+| Attribute | Description |
+|---|---|
+| **URL** | `/submissions/:id/results` |
+| **Layout** | Progress stepper (top) + 3 result cards (horizontal row) + Final score bar (bottom) |
+| **Components** | |
+| *Progress Stepper* | 6 steps: Queued → Building → Running Tests → AST Analysis → AI Review → Complete. Active step: yellow spinner. Completed: green checkmark. |
+| *Card 1: Test Cases* | Title + score (e.g., 80/100). List of test cases with ✅ (passed) / ❌ (failed). Expandable: Input, Expected Output, Actual Output. |
+| *Card 2: Code Quality (AI Review)* | Circular gauge (0-100). AI feedback list: "✅ Good naming convention", "⚠️ Missing error handling", "💡 Consider SOLID principles". |
+| *Card 3: Plagiarism Check* | Semicircle gauge with color zones: 0-30% green (Safe), 30-60% yellow (Warning), 60-100% red (Danger). Match details if flagged. |
+| *Final Score Bar* | "Final Score: XX/100" (large font). "Appeal this result" button if student disagrees. |
+| **Real-time** | WebSocket connection pushes step-by-step progress updates. All 3 cards render simultaneously on "Complete". |
+
+#### 6.7.4. Screen 4 — Lecturer Dashboard
+
+![Lecturer Dashboard Mockup](../02_Design_Artefacts/UI_Mockups/mockup_02_lecturer_dashboard.jpg)
+
+| Attribute | Description |
+|---|---|
+| **URL** | `/dashboard` (role: Lecturer) |
+| **Layout** | Sidebar navigation + Main content with stats cards and data tables |
+| **Components** | |
+| *Sidebar* | Class list, Create Assignment, Import Students, Git Analytics, Appeals, Settings |
+| *Stats Cards (top row)* | Total Students, Submissions Today, Average Score, Pending Appeals |
+| *Submission Rate Chart* | Pie chart: Submitted vs Not Submitted vs Late |
+| *Score Distribution Chart* | Bar chart: score ranges (0-20, 20-40, 40-60, 60-80, 80-100) |
+| *Plagiarism Suspects Table* | Top 10 submission pairs with highest AST similarity %, with "View Detail" link |
+| **Actions** | Click "Create Assignment" → `/assignments/new`<br/>Click "Import Students" → Upload modal<br/>Click student row → Detailed submission view |
+
+#### 6.7.5. Screen Flow Diagram
+
+![Screen Flow Map](../02_Design_Artefacts/UI_Mockups/mockup_05_screen_flow_map.jpg)
+
+```mermaid
+flowchart TD
+    LOGIN["Login Page<br/>(Google SSO)"] --> AUTH{"Role?"}
+    AUTH -->|Student| S_DASH["Student Dashboard<br/>(Assignment List)"]
+    AUTH -->|Lecturer| L_DASH["Lecturer Dashboard<br/>(Stats + Management)"]
+    AUTH -->|Admin| A_DASH["Admin Panel<br/>(Users + Config)"]
+
+    S_DASH --> SUBMIT["Submit Assignment<br/>(Upload .zip)"]
+    SUBMIT --> RESULTS["Grading Results<br/>(3 Cards + Real-time)"]
+    RESULTS --> APPEAL["Appeal Form"]
+    S_DASH --> RESULTS
+
+    L_DASH --> CREATE["Create Assignment<br/>(+ AI Generate)"]
+    L_DASH --> IMPORT["Import Students<br/>(Excel Upload)"]
+    L_DASH --> GIT["Git Analytics<br/>(Contribution Report)"]
+    L_DASH --> HANDLE_APPEAL["Handle Appeals<br/>(Accept / Reject)"]
+    L_DASH --> DETAIL["Submission Detail<br/>(Code + Score + AST)"]
+
+    A_DASH --> USERS["Manage Users"]
+    A_DASH --> CONFIG["Sandbox Config"]
+    A_DASH --> LOGS["Audit Logs"]
+```
+
 ---
 
 ## 7. Non-Functional Requirements
@@ -607,12 +692,12 @@ erDiagram
 
 | ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-01** | Docker Sandbox must completely isolate resources | RAM ≤ 512MB, limited CPU shares, **external network 100% disabled** |
-| **NFR-02** | Sandbox must defend against common malware | Block: fork bomb, symlink escape, /proc mount, disk exhaustion |
+| **NFR-01** | Code Execution Engine (Judge0/Piston) must completely isolate resources | RAM ≤ 512MB, limited CPU shares, **external network 100% disabled** (provided by Judge0/Piston out-of-the-box) |
+| **NFR-02** | Execution sandbox must defend against common malware | Block: fork bomb, symlink escape, /proc mount, disk exhaustion (Judge0/Piston handles natively) |
 | **NFR-03** | JWT authentication must be stored in HttpOnly Cookie | Cookie inaccessible from JavaScript (XSS prevention) |
 | **NFR-04** | Google SSO must only accept FPT email domains | Whitelist: `@fpt.edu.vn`, `@fe.edu.vn` |
 | **NFR-05** | API keys (OpenAI, Gemini) must not be hard-coded | Store in environment variables (.env), never commit to Git |
-| **NFR-18** | **(P2P Defense)** System must log every Sandbox execution in detail | Log includes: `submission_id`, `start_time`, `end_time`, `exit_code`, `resource_usage` (RAM/CPU peak), `security_alert`. Retain for minimum 30 days. |
+| **NFR-18** | **(P2P Defense)** System must log every sandbox execution in detail | Log includes: `submission_id`, `start_time`, `end_time`, `exit_code`, `resource_usage` (RAM/CPU peak), `security_alert`. Retain for minimum 30 days. |
 
 ### 7.2. Performance
 
@@ -643,7 +728,7 @@ erDiagram
 | ID | Requirement | Measurement Criteria |
 |---|---|---|
 | **NFR-15** | Responsive interface on both Web and Mobile | Support: Desktop (≥ 1024px), Tablet (≥ 768px), Mobile (≥ 375px) |
-| **NFR-16** | Real-time result updates without page reload | Using WebSocket (Socket.IO) |
+| **NFR-16** | Real-time result updates without page reload | Using WebSocket (Socket.IO) with API polling fallback |
 | **NFR-17** | Compilation error explanations in Vietnamese | AI returns explanations in Vietnamese natural language |
 
 ---
@@ -657,27 +742,48 @@ erDiagram
 - **AST Engine:** Python 3.11+ with FastAPI
 - **Database:** PostgreSQL 15+
 - **Message Queue:** Redis 7+ with BullMQ
-- **Container Runtime:** Docker Engine 24+
+- **Code Execution:** Judge0 / Piston (self-hosted or API)
 - **CI/CD:** GitHub Actions
 - **Cloud Deploy:** Azure / AWS / Vercel (team's choice)
+
+### 8.4. MVP Scope Limitations
+> The following features are scoped as **simplified/secondary** for the 10-week MVP. Full implementations are planned for future iterations.
+
+| Feature | MVP Scope | Future Scope |
+|---|---|---|
+| **AST Plagiarism Detection** | Java only (ANTLR parser) | Add Python (`ast` module), C# (Roslyn) |
+| **GenAI Assignment Generation (US-08)** | Basic draft generation (assignment description + sample test cases) | Full rubric auto-generation, multi-round refinement |
+| **Git Analytics (US-11)** | Basic metrics: commits count, LOC per member | PR analysis, contribution timeline charts, automated free-rider scoring |
+| **Docker Sandbox** | Use Judge0/Piston API (pre-built sandbox) | Custom Docker containers with fine-grained resource control |
+| **Mobile App** | Responsive web (PWA-ready) | Native React Native / Expo app |
+
+### 8.5. Risk Assessment
+
+| # | Risk | Impact | Mitigation |
+|---|---|---|---|
+| R-01 | **Resubmission Policy** — No clear rule on how many times a student can resubmit before deadline | Students may flood the queue with unlimited resubmissions | Limit to max 5 submissions per assignment per student. Show remaining attempts on UI. |
+| R-02 | **API Rate Limiting** — OpenAI/Gemini API may throttle or reject requests during peak hours | AI Code Review step fails, resulting in incomplete grading | Implement queue-based retry with exponential backoff. Fallback: skip AI review and mark as "AI Review Pending". |
+| R-03 | **Audit Trail for Manual Edits** — Lecturer manually overrides a score but no log is kept | Disputes during P2P Defense cannot be resolved with evidence | Log every manual score edit: `editor_id`, `old_score`, `new_score`, `reason`, `timestamp`. Immutable audit table. |
+| R-04 | **False-Positive Plagiarism** — AST + Winnowing flags legitimate code as plagiarism (e.g., boilerplate, starter code) | Students unfairly penalized, appeals increase | Allow lecturer to whitelist specific code patterns/files. Display similarity breakdown (which functions matched). Student can appeal with explanation. |
+| R-05 | **Data Retention Policy** — No defined policy for how long submission files, logs, and personal data are stored | GDPR/PDPA compliance risk, storage costs grow unbounded | Define retention: Submission files = 1 semester, Sandbox logs = 30 days (NFR-18), Personal data = until account deletion. Auto-purge scripts run monthly. |
 
 ### 8.2. Business Constraints
 - The system only serves students and lecturers belonging to FPT University (verified by email domain).
 - Each submission is limited to a maximum of 10MB (.zip file).
 - Maximum code execution time is 30 seconds per submission.
-- OpenAI/Gemini API keys use round-robin rotation to avoid rate limits.
+- OpenAI/Gemini API key uses a single key with exponential backoff retry.
 
 ### 8.3. Project Constraints
 - Development timeline: 10 weeks.
 - Development team: 4-6 students.
 - Code must pass linting (ESLint/Prettier for TypeScript, Flake8 for Python).
-- Unit test coverage ≥ 80% on core modules (required from Milestone 3).
+- Unit test coverage ≥ 80% on core modules (scoring, validation, matching logic - excluding live Docker/AI integration paths).
 
 ---
 
 ## 9. Appendix – AI Validation Logs
 
-> **Instructions:** The development team records all instances of AI usage (ChatGPT, Gemini, Copilot...) during the analysis, design, and development process. Each log includes: date, AI tool, purpose of use, input prompt, and evaluation of results.
+> **Instructions:** The development team records all instances of AI usage (ChatGPT, Gemini, Copilot...) during the analysis, design, and development process. Each log includes: date, AI tool, purpose of use, input prompt, evaluation of results, and **expert/instructor validation**.
 
 ### Log #1
 | Attribute | Content |
@@ -688,6 +794,7 @@ erDiagram
 | **Input Prompt** | "I am starting a new project, can you review the file md RBL_Syllabus_AITA_10Weeks.md... sketch the directory tree for this project" |
 | **AI Output** | AI read and understood the Syllabus file, proposed a Monorepo structure divided into `apps` (api-gateway, web, sandbox, ast) and `docs`. |
 | **Team Evaluation** | Accepted 100%. Structure is highly accurate for a P2P Review project. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #1 here]* |
 
 ### Log #2
@@ -699,6 +806,7 @@ erDiagram
 | **Input Prompt** | "Now I and you will work on item #2... create a plan for me to review before approval" |
 | **AI Output** | AI generated 15 detailed User Stories divided among Student, Lecturer, and System/Admin. |
 | **Team Evaluation** | Exceeds Rubric requirements (≥12). Content covers all 5 core subsystems. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #2 here]* |
 
 ### Log #3
@@ -710,6 +818,7 @@ erDiagram
 | **Input Prompt** | Auto-generated based on task "Complete UML Use Case Diagram, Activity Diagram, State Diagram" |
 | **AI Output** | AI wrote Markdown code with integrated Mermaid to directly draw submission flow diagrams and Submission lifecycle state diagrams. |
 | **Team Evaluation** | Mermaid code is accurate, renders well on GitHub, meets submission flow requirements. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #3 here]* |
 
 ### Log #4
@@ -721,6 +830,7 @@ erDiagram
 | **Input Prompt** | "Use AI image generation tool to create sample UI mockup designs... Generate screen flow images and add to project" |
 | **AI Output** | AI generated 4 interface images (Login, Dashboard, Submission, Results) in Glassmorphism style and 1 User Flow diagram image. |
 | **Team Evaluation** | Images are very professional, meeting modern "Aesthetics" requirements. Good reference material for Figma design. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #4 here]* |
 
 ### Log #5
@@ -732,6 +842,7 @@ erDiagram
 | **Input Prompt** | "There are a few things to improve, please review (Screenshots suggesting missing ERD, Appeals table, Data Dictionary)" |
 | **AI Output** | AI created an ERD diagram using Mermaid with 8 tables (including Appeals table) and a detailed Data Dictionary for each column. |
 | **Team Evaluation** | Filled the Rubric gap (ERD ≥ 8 entities). Standardized foreign key (FK) constraints. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #5 here]* |
 
 ### Log #6
@@ -743,9 +854,10 @@ erDiagram
 | **Input Prompt** | "There are a few things to improve, please review (Screenshots suggesting missing NFR for Monitoring/Logging for P2P Defense)" |
 | **AI Output** | AI created NFR-18 requiring detailed logging of every Docker Sandbox execution (exit_code, RAM/CPU) for a minimum of 30 days. |
 | **Team Evaluation** | This is a critical feature to defend against malware attacks from other teams. Perfect recommendation. |
+| **Expert Validation** | Reviewed by Instructor [Name] on [Date]. Status: Approved / Approved with modifications. |
 | **Evidence Screenshot** | *[Team inserts AI chat screenshot #6 here]* |
 
 ---
 
-**End of SRS Document – Version 1.0**
+**End of SRS Document – Version 1.1 (Updated per Milestone 1 Feedback)**
 **Development Team: SWP391 – Group 3**
