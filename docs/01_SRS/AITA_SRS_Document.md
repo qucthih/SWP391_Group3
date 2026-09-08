@@ -345,9 +345,69 @@ flowchart TD
     S --> AF
 ```
 
-### 6.3. Các sơ đồ State (Trạng thái)
+### 6.3. Sơ đồ tuần tự (Sequence Diagram) - Luồng chấm bài qua API
 
-#### 6.3.1. Vòng đời bài nộp (Submission Lifecycle)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Student
+    participant WebApp as Web App (React)
+    participant Gateway as API Gateway
+    participant Redis as BullMQ (Redis)
+    participant Sandbox as Docker Sandbox
+    participant AST as AST Engine (Python)
+    participant AI as GenAI Service
+    participant DB as PostgreSQL
+
+    Student->>WebApp: Tải lên file .zip & Nộp bài
+    WebApp->>Gateway: POST /api/submissions (FormData)
+    
+    Gateway->>DB: Tạo bản ghi Submission (status: PENDING)
+    DB-->>Gateway: Trả về submission_id
+    
+    Gateway->>Redis: Enqueue Job (submission_id, file_url)
+    Redis-->>Gateway: Job_id
+    Gateway-->>WebApp: HTTP 202 Accepted (submission_id)
+    WebApp-->>Student: Hiển thị trạng thái "Đang chờ chấm..."
+
+    Redis-)Sandbox: Worker picks up Job
+    
+    rect rgb(240, 248, 255)
+        note right of Sandbox: Phase 1: Biên dịch & Chạy Test
+        Sandbox->>Sandbox: Khởi tạo Container cô lập
+        Sandbox->>Sandbox: Giải nén & Biên dịch code
+        Sandbox->>Sandbox: Chạy các Test Cases (StdIn)
+        Sandbox-->>Sandbox: Thu thập StdOut / StdErr
+    end
+
+    rect rgb(240, 255, 240)
+        note right of Sandbox: Phase 2: Chống đạo văn (AST)
+        Sandbox->>AST: Gọi nội bộ (gửi source code)
+        AST->>AST: Tạo Cây cú pháp (AST)
+        AST->>AST: Băm Winnowing tạo Fingerprint
+        AST->>DB: So sánh Fingerprint với các bài cũ
+        DB-->>AST: Trả về Similarity %
+        AST-->>Sandbox: Kết quả đạo văn
+    end
+
+    rect rgb(255, 245, 238)
+        note right of Sandbox: Phase 3: AI Code Review
+        Sandbox->>AI: Gửi source code + test results
+        AI->>AI: Prompt Engineering & Gọi OpenAI/Gemini
+        AI-->>Sandbox: Trả về Clean Code Feedbacks
+    end
+
+    Sandbox->>DB: Cập nhật Submission (tổng điểm, AI feedback, trạng thái COMPLETED)
+    DB-->>Sandbox: OK
+    
+    Sandbox-)Gateway: Push Event (Job Completed) qua WebSocket
+    Gateway-)WebApp: Emit WebSocket (Real-time update)
+    WebApp-->>Student: Hiển thị kết quả chấm điểm (3 Cards)
+```
+
+### 6.4. Các sơ đồ State (Trạng thái)
+
+#### 6.4.1. Vòng đời bài nộp (Submission Lifecycle)
 
 ```mermaid
 stateDiagram-v2
@@ -385,7 +445,7 @@ stateDiagram-v2
     COMPLETED --> [*]
 ```
 
-#### 6.3.2. Vòng đời Request GenAI (GenAI Lifecycle)
+#### 6.4.2. Vòng đời Request GenAI (GenAI Lifecycle)
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT: Giảng viên bắt đầu tạo prompt
@@ -399,7 +459,7 @@ stateDiagram-v2
     SAVED --> [*]
 ```
 
-#### 6.3.3. Vòng đời phân tích Git (Git Analytics Process)
+#### 6.4.3. Vòng đời phân tích Git (Git Analytics Process)
 ```mermaid
 stateDiagram-v2
     [*] --> CLONING: Bắt đầu clone Git Repo
@@ -414,7 +474,7 @@ stateDiagram-v2
     COMPLETED --> [*]
 ```
 
-### 6.4. Sơ đồ ERD (Entity-Relationship Diagram)
+### 6.5. Sơ đồ ERD (Entity-Relationship Diagram)
 
 ```mermaid
 erDiagram
@@ -499,7 +559,7 @@ erDiagram
     USERS ||--o{ APPEALS : "creates / resolves"
 ```
 
-### 6.5. Data Dictionary (Từ điển dữ liệu)
+### 6.6. Data Dictionary (Từ điển dữ liệu)
 
 | Bảng (Table) | Cột (Column) | Kiểu dữ liệu | Ràng buộc (Constraints) | Mô tả |
 |---|---|---|---|---|
