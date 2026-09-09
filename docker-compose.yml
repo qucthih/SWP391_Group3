@@ -1,20 +1,21 @@
 version: '3.8'
 
 services:
-  # 1. Cơ sở dữ liệu Microsoft SQL Server 2019 (MSSQL)
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2019-latest
-    container_name: aita_mssql
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: aita_postgres
     restart: always
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "AitaPassword123!" # MSSQL yêu cầu mật khẩu phức tạp: chữ hoa, chữ thường, số, ký tự đặc biệt
+      POSTGRES_USER: aita_user
+      POSTGRES_PASSWORD: aita_password
+      POSTGRES_DB: aita_db
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - mssql_data:/var/opt/mssql
+      - postgres_data:/var/lib/postgresql/data
 
-  # 2. Hàng đợi & Caching Redis
+  # 2. Queue & Caching Redis
   redis:
     image: redis:7-alpine
     container_name: aita_redis
@@ -25,5 +26,5 @@ services:
       - redis_data:/data
 
 volumes:
-  mssql_data:
+  postgres_data:
   redis_data:

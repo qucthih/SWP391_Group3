@@ -3,146 +3,163 @@
 // Cơ sở dữ liệu: Microsoft SQL Server (MSSQL) - Đồng bộ chuẩn hóa theo tài liệu SRS
 // ==============================================================================
 
+// Cấu hình sinh mã nguồn: Prisma sẽ đọc file này và tự sinh thư viện TypeScript tương ứng
 generator client {
   provider = "prisma-client-js"
 }
 
+// Cấu hình nguồn dữ liệu: Kết nối tới PostgreSQL thông qua biến DATABASE_URL từ file .env
 datasource db {
-  provider = "sqlserver"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // ==============================================================================
-// HẰNG SỐ QUY ƯỚC TRONG HỆ THỐNG (MSSQL không hỗ trợ enum gốc, lưu dạng String)
-// Role: "STUDENT" | "LECTURER" | "ADMIN"
-// SubmissionStatus: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"
+// ENUMS (TẬP HỢP CÁC HẰNG SỐ TRẠNG THÁI)
 // ==============================================================================
 
-// ------------------------------------------------------------------------------
-// 1. BẢNG USERS: Quản lý thông tin tài khoản người dùng
-// ------------------------------------------------------------------------------
-model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  passwordHash String?
-  fullName     String
-  role         String        @default("STUDENT") // STUDENT, LECTURER, ADMIN
-  avatarUrl    String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  // Quan hệ:
-  classesLectured Class[]       @relation("LecturerClasses")
-  enrollments     ClassMember[]
-  submissions     Submission[]
-
-  @@map("users")
+// Vai trò người dùng trong hệ thống AITA
+enum Role {
+  STUDENT   // Sinh viên: nộp bài tập, xem điểm, xem nhận xét của AI
+  LECTURER  // Giảng viên: tạo lớp, tạo đề thi, quản lý sinh viên, duyệt phúc khảo
+  ADMIN     // Quản trị viên: phân quyền, cấu hình hệ thống
 }
 
-// ------------------------------------------------------------------------------
+// Vòng đời trạng thái xử lý của một bài nộp (Submission)
+enum SubmissionStatus {
+  PENDING    // Bài nộp đang nằm trong hàng đợi Redis (BullMQ), chưa tới lượt chấm
+  PROCESSING // Đang được đưa vào Docker Sandbox để chạy test case hoặc phân tích AST
+  COMPLETED  // Đã hoàn thành chấm điểm, kiểm tra đạo văn và đánh giá Clean Code thành công
+  FAILED     // Chấm thất bại (ví dụ: lỗi biên dịch compile error, timeout 512MB RAM, sandbox crash)
+}
+
+// ==============================================================================
+// 1. BẢNG USERS: Quản lý thông tin tài khoản người dùng
+// ==============================================================================
+model User {
+  id           String        @id @default(uuid()) // Khóa chính: dùng định danh UUID ngẫu nhiên bảo mật cao
+  email        String        @unique              // Email FPT (@fpt.edu.vn hoặc @fe.edu.vn), không được trùng lặp
+  passwordHash String?                            // Mật khẩu đã băm (Null nếu đăng nhập qua Google OAuth SSO)
+  fullName     String                             // Họ và tên đầy đủ của người dùng
+  role         Role          @default(STUDENT)    // Mặc định tạo tài khoản là vai trò Sinh viên
+  avatarUrl    String?                            // Đường dẫn ảnh đại diện (nếu có)
+  createdAt    DateTime      @default(now())      // Thời điểm tạo tài khoản
+  updatedAt    DateTime      @updatedAt           // Tự động cập nhật thời điểm sửa thông tin
+
+  // QUAN HỆ (RELATIONS):
+  classesLectured Class[]       @relation("LecturerClasses") // Danh sách lớp do Giảng viên này làm chủ nhiệm (1 Giảng viên - N Lớp)
+  enrollments     ClassMember[]                              // Danh sách các lớp mà Sinh viên này đang tham gia
+  submissions     Submission[]                               // Danh sách các bài nộp code do Sinh viên này thực hiện
+
+  @@map("users") // Đặt tên bảng thực tế trong Database PostgreSQL là chữ thường số nhiều
+}
+
+// ==============================================================================
 // 2. BẢNG CLASSES: Quản lý lớp học môn học
-// ------------------------------------------------------------------------------
+// ==============================================================================
 model Class {
-  id          String        @id @default(uuid())
-  code        String        @unique
-  name        String
-  description String?
-  lecturerId  String
+  id          String        @id @default(uuid()) // Khóa chính lớp học
+  code        String        @unique              // Mã lớp (Ví dụ: SE1801-SWP391), là duy nhất
+  name        String                             // Tên môn học / lớp học (Ví dụ: Kỹ thuật phần mềm nhóm 3)
+  description String?                            // Mô tả ngắn về yêu cầu môn học
+  lecturerId  String                             // Khóa ngoại: ID của Giảng viên phụ trách lớp
   lecturer    User          @relation("LecturerClasses", fields: [lecturerId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  // Quan hệ:
-  members     ClassMember[]
-  exams       Exam[]
+  // QUAN HỆ:
+  members     ClassMember[] // Danh sách sinh viên thuộc lớp học này
+  exams       Exam[]        // Danh sách các đề thi / bài tập được giao cho lớp này
 
   @@map("classes")
 }
 
-// Bảng trung gian n-n: Sinh viên thuộc lớp nào
+// Bảng trung gian giải quyết quan hệ Nhiều - Nhiều (N - N) giữa Lớp học và Sinh viên
 model ClassMember {
   id        String   @id @default(uuid())
-  classId   String
-  userId    String
-  joinedAt  DateTime @default(now())
+  classId   String                        // Khóa ngoại trỏ đến bảng classes
+  userId    String                        // Khóa ngoại trỏ đến bảng users
+  joinedAt  DateTime @default(now())      // Ngày tham gia vào lớp
 
   class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([classId, userId])
+  @@unique([classId, userId]) // Một sinh viên chỉ có thể vào 1 lớp duy nhất một lần
   @@map("class_members")
 }
 
-// ------------------------------------------------------------------------------
-// 3. BẢNG EXAMS: Quản lý Đề thi / Bài tập thực hành
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 3. BẢNG EXAMS: Quản lý Đề thi / Bài tập thực hành được giao
+// ==============================================================================
 model Exam {
-  id          String           @id @default(uuid())
-  title       String
-  description String
-  classId     String
-  startTime   DateTime
-  endTime     DateTime
-  maxScore    Float            @default(10.0)
+  id          String           @id @default(uuid()) // Khóa chính đề thi
+  title       String                                // Tiêu đề bài tập (Ví dụ: Assignment 1 - OOP Car Rental)
+  description String                                // Đề bài chi tiết (có thể do GenAI tạo tự động)
+  classId     String                                // Khóa ngoại trỏ về lớp học nhận bài thi này
+  startTime   DateTime                              // Thời gian bắt đầu mở cổng nộp bài
+  endTime     DateTime                              // Hạn chót (Deadline) nộp bài
+  maxScore    Float            @default(10.0)       // Thang điểm tối đa (mặc định thang 10)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  // Quan hệ:
+  // QUAN HỆ:
   class       Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
-  submissions Submission[]
-  criteria    CriterionScore[]
+  submissions Submission[]                          // Tất cả bài nộp của sinh viên cho đề thi này
+  criteria    CriterionScore[]                      // Các tiêu chí chấm điểm thuộc về đề thi này
 
   @@map("exams")
 }
 
-// ------------------------------------------------------------------------------
+// ==============================================================================
 // 4. BẢNG SUBMISSIONS: Quản lý bài nộp mã nguồn của sinh viên
-// ------------------------------------------------------------------------------
+// ==============================================================================
 model Submission {
-  id              String           @id @default(uuid())
-  examId          String
-  studentId       String
-  sourceCodeUrl   String
-  status          String           @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
-  totalScore      Float?
-  compileLog      String?
-  submittedAt     DateTime         @default(now())
+  id              String           @id @default(uuid()) // Mã bài nộp duy nhất
+  examId          String                                // Nộp cho đề thi nào
+  studentId       String                                // Sinh viên nào nộp
+  sourceCodeUrl   String                                // Đường dẫn lưu trữ file .zip / code của bài nộp
+  status          SubmissionStatus @default(PENDING)    // Trạng thái chấm hiện tại
+  totalScore      Float?                                // Tổng điểm đạt được (chỉ có sau khi chấm xong)
+  compileLog      String?                               // Lưu lại log StdOut / StdErr khi chạy trong Docker Sandbox
+  submittedAt     DateTime         @default(now())      // Thời điểm sinh viên bấm nộp bài
 
-  // Quan hệ:
+  // QUAN HỆ:
   exam            Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
   student         User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  fingerprints    ASTFingerprint[]
-  ruleScores      RuleScore[]
+  fingerprints    ASTFingerprint[]                      // Tập hợp các "vân tay số" cây AST trích xuất từ bài nộp này
+  ruleScores      RuleScore[]                           // Kết quả chấm các luật Clean Code cho bài nộp này
 
   @@map("submissions")
 }
 
-// ------------------------------------------------------------------------------
-// 5. BẢNG AST_FINGERPRINTS: Vân tay số cây AST (Trọng tâm RBL & Winnowing)
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 5. BẢNG AST_FINGERPRINTS: Bảng vân tay số cây AST (Trọng tâm RBL & Winnowing)
+// ==============================================================================
 model ASTFingerprint {
   id            String     @id @default(uuid())
-  submissionId  String
-  hashValue     BigInt
-  position      Int
+  submissionId  String                          // Thuộc về bài nộp nào
+  hashValue     BigInt                          // Giá trị băm (Hash) của k-gram đại diện cho một cụm nhánh cây cú pháp AST
+  position      Int                             // Vị trí (chỉ số dòng/token) xuất hiện đoạn code này
   createdAt     DateTime   @default(now())
 
   submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
+  // Đánh chỉ mục Index trên hashValue: Giúp hệ thống tìm kiếm và đối chiếu trùng lặp
+  // giữa hàng nghìn bài nộp trong lớp học trong thời gian tính bằng mili-giây!
   @@index([hashValue])
   @@map("ast_fingerprints")
 }
 
-// ------------------------------------------------------------------------------
-// 6. BẢNG RULE_SCORES: Kết quả kiểm tra Clean Code / Sandbox
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 6. BẢNG RULE_SCORES: Kết quả kiểm tra luật tĩnh & AI Semantic Review
+// ==============================================================================
 model RuleScore {
   id           String     @id @default(uuid())
-  submissionId String
-  ruleName     String
-  score        Float
-  maxScore     Float
-  feedback     String?
+  submissionId String                          // Thuộc về bài nộp nào
+  ruleName     String                          // Tên luật (Ví dụ: "NO_INFINITE_LOOP", "CHECK_SOLID_SRP", "FUNCTION_LENGTH")
+  score        Float                           // Điểm đạt được của luật này
+  maxScore     Float                           // Điểm tối đa của luật
+  feedback     String?                         // Lời giải thích, nhận xét tự nhiên của GenAI hướng dẫn sinh viên sửa lỗi
   createdAt    DateTime   @default(now())
 
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
@@ -150,15 +167,15 @@ model RuleScore {
   @@map("rule_scores")
 }
 
-// ------------------------------------------------------------------------------
-// 7. BẢNG CRITERION_SCORES: Barem tiêu chí chấm điểm
-// ------------------------------------------------------------------------------
+// ==============================================================================
+// 7. BẢNG CRITERION_SCORES: Barem tiêu chí chấm điểm của Đề thi
+// ==============================================================================
 model CriterionScore {
   id          String   @id @default(uuid())
-  examId      String
-  name        String
-  description String?
-  weight      Float
+  examId      String                          // Thuộc về đề thi nào
+  name        String                          // Tên tiêu chí (Ví dụ: "Đúng Test Cases", "Kiến trúc Code", "Độ tương đồng AST < 20%")
+  description String?                         // Hướng dẫn chấm chi tiết của tiêu chí
+  weight      Float                           // Trọng số (Ví dụ: 0.5 tương ứng chiếm 50% tổng điểm bài thi)
   createdAt   DateTime @default(now())
 
   exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
