@@ -532,8 +532,14 @@ erDiagram
         uuid id PK
         uuid submission_id FK
         jsonb fingerprint_data
-        float similarity_score
-        uuid matched_with_submission_id FK
+    }
+
+    PLAGIARISM_MATCHES {
+        uuid id PK
+        uuid submission_1_id FK
+        uuid submission_2_id FK
+        float similarity_percent
+        jsonb matched_fragments
     }
 
     APPEALS {
@@ -555,6 +561,7 @@ erDiagram
     ASSIGNMENTS ||--o{ SUBMISSIONS : "receives"
     USERS ||--o{ SUBMISSIONS : "makes"
     SUBMISSIONS ||--o| AST_FINGERPRINTS : "generates"
+    SUBMISSIONS ||--o{ PLAGIARISM_MATCHES : "is compared in"
     SUBMISSIONS ||--o| APPEALS : "can have"
     USERS ||--o{ APPEALS : "creates / resolves"
 ```
@@ -567,7 +574,7 @@ erDiagram
 | | `email` | VARCHAR(255) | UNIQUE, NOT NULL | FPT email for login |
 | | `password_hash` | VARCHAR(255) | | Password (if using traditional login) |
 | | `full_name` | VARCHAR(100) | NOT NULL | Full name |
-| | `role` | ENUM | NOT NULL | Role: STUDENT, LECTURER, ADMIN |
+| | `role` | VARCHAR (ENUM)| NOT NULL | Role: STUDENT, LECTURER, ADMIN (Mapped as string due to MSSQL limits) |
 | **CLASSES** | `id` | UUID | PK | Primary key, class identifier |
 | | `class_code` | VARCHAR(50) | NOT NULL | Class code (e.g., SE1801) |
 | | `lecturer_id` | UUID | FK -> USERS(id) | Lecturer in charge of the class |
@@ -586,13 +593,18 @@ erDiagram
 | **SUBMISSIONS** | `id` | UUID | PK | Primary key, submission identifier |
 | | `student_id` | UUID | FK -> USERS(id) | Submitter |
 | | `file_url` | VARCHAR(255) | NOT NULL | File link .zip (S3/Local) |
-| | `status` | ENUM | NOT NULL | Status (PENDING, QUEUED, COMPLETED...) |
+| | `status` | VARCHAR (ENUM)| NOT NULL | Status (PENDING, QUEUED...) (Mapped as string due to MSSQL limits) |
 | | `total_score` | FLOAT | | Total score |
 | | `ai_feedback` | TEXT | | AI Clean Code feedback |
+| | `submitted_at` | TIMESTAMP | DEFAULT NOW() | Date and time of submission |
 | **AST_FINGERPRINTS**| `id` | UUID | PK | Primary key, AST fingerprint identifier |
 | | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Fingerprint of which submission |
 | | `fingerprint_data`| JSONB | NOT NULL | Winnowing k-gram hash array |
-| | `similarity_score`| FLOAT | | Highest similarity % |
+| **PLAGIARISM_MATCHES**| `id` | UUID | PK | Primary key, match identifier |
+| | `submission_1_id` | UUID | FK -> SUBMISSIONS(id)| First submission |
+| | `submission_2_id` | UUID | FK -> SUBMISSIONS(id)| Second submission |
+| | `similarity_percent`| FLOAT | NOT NULL | Percentage of similarity (0-100) |
+| | `matched_fragments` | JSONB | | Array of matching line numbers/blocks |
 | **APPEALS** | `id` | UUID | PK | Primary key, appeal identifier |
 | | `submission_id` | UUID | FK -> SUBMISSIONS(id)| Appeal for which submission |
 | | `reason` | TEXT | NOT NULL | Student's appeal reason |
@@ -740,7 +752,7 @@ flowchart TD
 - **Frontend Mobile:** React Native / Expo
 - **Backend:** Node.js 20+ with TypeScript, Prisma ORM
 - **AST Engine:** Python 3.11+ with FastAPI
-- **Database:** PostgreSQL 15+
+- **Database:** Microsoft SQL Server 2019+
 - **Message Queue:** Redis 7+ with BullMQ
 - **Code Execution:** Judge0 / Piston (self-hosted or API)
 - **CI/CD:** GitHub Actions
