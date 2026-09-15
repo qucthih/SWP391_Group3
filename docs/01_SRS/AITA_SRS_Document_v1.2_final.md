@@ -170,7 +170,7 @@ graph LR
 | **Lecturer** | Lecturers create classes, design exams, manage grading rubrics, monitor results, and handle complaints | Create/edit/delete classes, import student lists from Excel, create assignments + test cases, request AI-generated assignments/rubrics, view statistical reports, handle appeals, view Git Analytics |
 | **Administrator** | System administrators manage accounts, configure Sandbox settings, and monitor system operations | Manage users, configure Sandbox (RAM, CPU limits), manage API keys (OpenAI/Gemini), view audit logs |
 | **AI Engine** | Automated system actor – Not a human. Performs content generation and code quality evaluation tasks | Generate assignments from lecturer descriptions, generate rubrics, evaluate Clean Code (SOLID, naming, architecture), explain compilation errors in natural language |
-| **Code Execution Engine** | Automated system actor. An isolated runtime that executes student-submitted source code | Gửi request tới Judge0/Piston API, nhận kết quả compile/run, timeout enforcement ở tầng gọi API |
+| **Code Execution Engine** | Automated system actor. An isolated runtime that executes student-submitted source code | Send request to Judge0/Piston API, receive compile/run results, enforce timeout at API call level |
 
 ---
 
@@ -216,8 +216,8 @@ graph LR
 | **Primary Actor** | Student |
 | **Secondary Actors** | Code Execution Engine, AST Engine, AI Engine |
 | **Preconditions** | Student is logged in, Assignment deadline has not passed |
-| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine gửi submission tới Judge0 API, nhận kết quả test case<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score, updates status to `COMPLETED`<br/>13. Sends real-time results to Student via WebSocket |
-| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb) → Timeout enforcement ở tầng gọi API → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
+| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine sends submission to Judge0 API, receives test case results<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score, updates status to `COMPLETED`<br/>13. Sends real-time results to Student via WebSocket |
+| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb) → Timeout enforcement at API call level → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
 | **Exception Flow** | **7a.** Redis Queue is full or down → System retries 3 times, if still failing → Status `QUEUE_ERROR`, notify Admin<br/>**11a.** OpenAI/Gemini API timeout → Skip Clean Code score, grade based on test cases + AST, mark "AI Review Pending" |
 | **Postconditions** | `Submission` record is updated with final status and score. Student receives results on the interface. |
 
@@ -307,7 +307,7 @@ flowchart TD
     F --> G["Push job to<br/>Redis Queue (BullMQ)"]
     G --> H["Redis Queue<br/>receives and dispatches job"]
 
-    H --> I["🐳 Code Execution Engine<br/>(Gửi code tới Judge0 API)"]
+    H --> I["🤖 Code Execution Engine<br/>(Send code to Judge0 API)"]
     I --> M{"Compilation<br/>successful?"}
     M -->|"❌ Compilation error"| N["Capture stderr"]
     N --> O["🤖 AI explains<br/>compilation error (LLM)"]
@@ -334,7 +334,7 @@ flowchart TD
     AD --> AE["Update Submission<br/>status = COMPLETED"]
 
     AC_HELD --> AD_HELD["Aggregate final score:<br/>Test Cases (60%) + Clean Code (40%)"]
-    AD_HELD --> AE_HELD["Update Submission<br/>status = SCORE_WITHHELD<br/>(chờ Giảng viên duyệt)"]
+    AD_HELD --> AE_HELD["Update Submission<br/>status = SCORE_WITHHELD<br/>(pending Lecturer review)"]
 
     AE --> AF["📡 Send results<br/>via WebSocket"]
     AE_HELD --> AF
@@ -447,14 +447,15 @@ stateDiagram-v2
 #### 6.4.2. GenAI Request Lifecycle
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT: Lecturer starts creating prompt
+    direction TB
+    [*] --> DRAFT: Starts creating prompt
     DRAFT --> REQUESTING: Send prompt to LLM API
-    REQUESTING --> SUCCESS: API returns result successfully
-    REQUESTING --> RATE_LIMITED: API rate limit (Too many requests)
-    REQUESTING --> ERROR: API Error / Timeout
-    RATE_LIMITED --> REQUESTING: Retry with exponential backoff
+    REQUESTING --> SUCCESS: Returns result
+    REQUESTING --> RATE_LIMITED: Rate limit (Too many requests)
+    REQUESTING --> ERROR: API Error/Timeout
+    RATE_LIMITED --> REQUESTING: Retry with backoff
     ERROR --> DRAFT: Report error to lecturer
-    SUCCESS --> SAVED: Lecturer approves & saves assignment
+    SUCCESS --> SAVED: Approves & saves
     SAVED --> [*]
 ```
 
@@ -677,7 +678,7 @@ This section describes the key screens of the AITA-Intelligent system, their lay
 | *Card 1: Test Cases* | Title + score (e.g., 80/100). List of test cases with ✅ (passed) / ❌ (failed). Expandable: Input, Expected Output, Actual Output. |
 | *Card 2: Code Quality (AI Review)* | Circular gauge (0-100). AI feedback list: "✅ Good naming convention", "⚠️ Missing error handling", "💡 Consider SOLID principles". |
 | *Card 3: Plagiarism Check* | Semicircle gauge with color zones: 0-30% green (Safe), 30-60% yellow (Warning), 60-100% red (Danger). Match details if flagged. |
-| *Final Score Bar* | "Final Score: XX/100" (large font). Nếu trạng thái là SCORE_WITHHELD, hiện "Điểm đang chờ giảng viên duyệt do nghi vấn đạo văn". "Appeal this result" button if student disagrees. |
+| *Final Score Bar* | "Final Score: XX/100" (large font). If status is SCORE_WITHHELD, display "Score pending lecturer review due to suspected plagiarism". "Appeal this result" button if student disagrees. |
 | **Real-time** | WebSocket connection pushes step-by-step progress updates. All 3 cards render simultaneously on "Complete". |
 
 #### 6.7.4. Screen 4 — Lecturer Dashboard
@@ -743,7 +744,7 @@ flowchart TD
 | ID | Requirement | Measurement Criteria |
 |---|---|---|
 | **NFR-06** | Average API response time | ≤ 200ms for standard APIs (CRUD) |
-| **NFR-07** | End-to-end grading time per submission | ≤ 90 seconds (includes: Code Execution + AST + AI). *Ghi chú: Giới hạn 30s áp dụng cho bước thực thi code trong Sandbox; 90s là tổng thời gian toàn bộ pipeline.* |
+| **NFR-07** | End-to-end grading time per submission | ≤ 90 seconds (includes: Code Execution + AST + AI). *Note: The 30s limit applies to code execution in Sandbox; 90s is the total time for the entire pipeline.* |
 | **NFR-08** | System must handle concurrent load | ≥ 100 requests/minute (stress test with k6 or JMeter) |
 | **NFR-09** | Grading results must be cached | Redis cache for result APIs, TTL = 5 minutes, response ≤ 100ms |
 
