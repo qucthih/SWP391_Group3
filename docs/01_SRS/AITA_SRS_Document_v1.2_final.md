@@ -182,7 +182,7 @@ graph LR
 |---|---|---|---|
 | **US-01** | As a **student**, I want to **log in using my FPT Google account** (`@fpt.edu.vn` / `@fe.edu.vn`) so I don't need to create a new account and my identity is verified. | - Only accept FPT domain emails<br/>- Redirect to Dashboard after login<br/>- JWT stored in HttpOnly Cookie | 🔴 High |
 | **US-02** | As a **student**, I want to **view the list of Assignments** for my enrolled class, so I can track deadlines and submission status. | - Display assignment name, deadline, status (Not submitted / Submitted / Graded)<br/>- Sort by nearest deadline | 🔴 High |
-| **US-03** | As a **student**, I want to **submit assignments as a .zip file** containing source code, so the system can automatically grade them for me. | - Only accept .zip files (max 10MB)<br/>- File hashed with SHA-256 for integrity verification<br/>- System displays "Submission received" immediately | 🔴 High |
+| **US-03** | As a **student**, I want to **submit assignments as a .zip file** containing source code, so the system can automatically grade them for me. | - Only accept .zip files (max 10MB)<br/>- File hashed with SHA-256 for integrity verification<br/>- System displays "Submission received" immediately<br/>- Reject submission with error message if student has already submitted ≥ 5 times for this assignment (see R-01) | 🔴 High |
 | **US-04** | As a **student**, I want to **view grading results in real-time** (test case scores, Clean Code score, plagiarism check results) as soon as the system finishes processing, without needing to reload the page. | - Real-time updates via WebSocket<br/>- Clearly display: Passed/Failed for each test case<br/>- Display Clean Code score with AI explanation<br/>- Display plagiarism similarity percentage (0-30% Safe, 30-60% Warning, >60% Danger/Flag) | 🔴 High |
 | **US-05** | As a **student**, I want to **submit an Appeal** if I believe the automated grading result is inaccurate, so the lecturer can re-evaluate. | - Appeal form with "Reason" field (textarea)<br/>- Appeal status: Pending / Accepted / Rejected<br/>- Student receives notification when lecturer responds | 🟡 Medium |
 
@@ -215,9 +215,9 @@ graph LR
 |---|---|
 | **Primary Actor** | Student |
 | **Secondary Actors** | Code Execution Engine, AST Engine, AI Engine |
-| **Preconditions** | Student is logged in, Assignment deadline has not passed |
-| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine sends submission to Judge0 API, receives test case results<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score, updates status to `COMPLETED`<br/>13. Sends real-time results to Student via WebSocket |
-| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb) → Timeout enforcement at API call level → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
+| **Preconditions** | Student is logged in, Assignment deadline has not passed, Student has submitted fewer than 5 times for this assignment |
+| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine sends submission to Judge0 API, receives test case results<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score; updates status to `COMPLETED` if similarity ≤ 60%, or `SCORE_WITHHELD` if similarity > 60% (pending lecturer review)<br/>13. Sends real-time results to Student via WebSocket |
+| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb, /proc access, disk abuse) → Judge0 detects malicious signal → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**8c.** Code execution exceeds 30 seconds without malicious signal → Status `TIMEOUT`, notify student to optimize algorithm<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
 | **Exception Flow** | **7a.** Redis Queue is full or down → System retries 3 times, if still failing → Status `QUEUE_ERROR`, notify Admin<br/>**11a.** OpenAI/Gemini API timeout → Skip Clean Code score, grade based on test cases + AST, mark "AI Review Pending" |
 | **Postconditions** | `Submission` record is updated with final status and score. Student receives results on the interface. |
 
@@ -314,12 +314,16 @@ flowchart TD
     O --> P["Return result:<br/>COMPILATION_ERROR"]
     M -->|"✅ Successful"| Q["Run each Test Case<br/>(StdIn → StdOut)"]
 
-    Q --> R{"Timeout<br/>(> 30s)?"}
-    R -->|"⚠️ Timeout or<br/>Malware detected"| S["Judge0 terminates execution<br/>status = SECURITY_VIOLATION"]
-    R -->|"✅ Completed"| T["Compare Output vs<br/>Expected Output"]
+    Q --> R{"Execution<br/>issue detected?"}
+    R -->|"⏱️ Timeout only<br/>(> 30s, no malicious signal)"| S_TIMEOUT["Judge0 terminates execution<br/>status = TIMEOUT"]
+    R -->|"🚫 Malware detected<br/>(fork bomb, /proc access, disk abuse)"| S_SECURITY["Judge0 terminates execution<br/>status = SECURITY_VIOLATION"]
+    R -->|"✅ Completed normally"| T["Compare Output vs<br/>Expected Output"]
 
     T --> U["Calculate Test Case scores"]
-    U --> V["🌳 AST Engine:<br/>Parse code → AST JSON"]
+    U --> LANG{"Assignment language<br/>== Java?"}
+    LANG -->|"✅ Java"| V["🌳 AST Engine:<br/>Parse code → AST JSON"]
+    LANG -->|"❌ Python / C#<br/>(MVP: not supported)"| AB2["Skip AST plagiarism check<br/>Store submission without fingerprint"]
+    AB2 --> AC_NORMAL
     V --> W["Remove disguises<br/>(variable names, comments, order)"]
     W --> X["Winnowing:<br/>k-grams → Fingerprint"]
     X --> Y["Match against all<br/>submissions in Assignment"]
@@ -340,7 +344,8 @@ flowchart TD
     AE_HELD --> AF
     AF --> AG(["🔴 End"])
     P --> AF
-    S --> AF
+    S_TIMEOUT --> AF
+    S_SECURITY --> AF
 ```
 
 ### 6.3. Sequence Diagram – Submission Grading API Flow
@@ -393,7 +398,11 @@ sequenceDiagram
         AI-->>Sandbox: Return Clean Code Feedback
     end
 
-    Sandbox->>DB: Update Submission (total score, AI feedback, status COMPLETED)
+    alt Similarity > 60%
+        Sandbox->>DB: Update Submission (total score, AI feedback, status SCORE_WITHHELD)
+    else Similarity ≤ 60%
+        Sandbox->>DB: Update Submission (total score, AI feedback, status COMPLETED)
+    end
     DB-->>Sandbox: OK
     
     Sandbox-)Gateway: Push Event (Job Completed) via WebSocket
@@ -476,6 +485,8 @@ stateDiagram-v2
 
 ### 6.5. ERD (Entity-Relationship Diagram)
 
+> **Design Note — Class Table Inheritance (CTI):** The `USERS` table stores only attributes shared across all roles, while role-specific data is separated into child tables (`STUDENTS`, `LECTURERS`, `ADMINS`) linked via a 1-to-1 FK on `user_id`. This pattern ensures referential integrity at the database level — for example, `CLASSES.lecturer_id` can only reference a row that actually exists in `LECTURERS`, preventing accidental assignment of a student ID to a lecturer-only column. The `role` discriminator column is retained in `USERS` so the application layer knows which child table to JOIN without a multi-table probe.
+
 ```mermaid
 erDiagram
     USERS {
@@ -485,6 +496,18 @@ erDiagram
         string full_name
         string role "STUDENT, LECTURER, ADMIN"
         datetime created_at
+    }
+
+    STUDENTS {
+        UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
+    }
+
+    LECTURERS {
+        UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
+    }
+
+    ADMINS {
+        UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
     }
 
     CLASSES {
@@ -548,6 +571,7 @@ erDiagram
         UNIQUEIDENTIFIER id PK
         UNIQUEIDENTIFIER submission_id FK
         UNIQUEIDENTIFIER student_id FK
+        UNIQUEIDENTIFIER resolved_by FK
         text reason
         string status "PENDING, APPROVED, REJECTED"
         text lecturer_response
@@ -565,17 +589,21 @@ erDiagram
         datetime created_at
     }
 
-    USERS ||--o{ CLASSES : "manages"
+    USERS ||--o| STUDENTS : "is a"
+    USERS ||--o| LECTURERS : "is a"
+    USERS ||--o| ADMINS : "is a"
+    LECTURERS ||--o{ CLASSES : "manages"
     CLASSES ||--|{ CLASS_STUDENTS : "has"
-    USERS ||--o{ CLASS_STUDENTS : "enrolls in"
+    STUDENTS ||--o{ CLASS_STUDENTS : "enrolls in"
     CLASSES ||--o{ ASSIGNMENTS : "contains"
     ASSIGNMENTS ||--o{ TEST_CASES : "has"
     ASSIGNMENTS ||--o{ SUBMISSIONS : "receives"
-    USERS ||--o{ SUBMISSIONS : "makes"
+    STUDENTS ||--o{ SUBMISSIONS : "makes"
     SUBMISSIONS ||--o| AST_FINGERPRINTS : "generates"
     SUBMISSIONS ||--o{ PLAGIARISM_MATCHES : "is compared in"
     SUBMISSIONS ||--o| APPEALS : "can have"
-    USERS ||--o{ APPEALS : "creates / resolves"
+    STUDENTS ||--o{ APPEALS : "creates"
+    LECTURERS ||--o{ APPEALS : "resolves"
     SUBMISSIONS ||--o{ SCORE_AUDIT_LOGS : "has edit history"
     USERS ||--o{ SCORE_AUDIT_LOGS : "creates"
 ```
@@ -588,12 +616,16 @@ erDiagram
 | | `email` | VARCHAR(255) | UNIQUE, NOT NULL | FPT email for login |
 | | `password_hash` | VARCHAR(255) | | Password (if using traditional login) |
 | | `full_name` | VARCHAR(100) | NOT NULL | Full name |
-| | `role` | VARCHAR (ENUM)| NOT NULL | Role: STUDENT, LECTURER, ADMIN (Mapped as string due to MSSQL limits) |
+| | `role` | VARCHAR (ENUM)| NOT NULL | Role discriminator: STUDENT, LECTURER, ADMIN (determines which child table to JOIN) |
+| | `created_at` | TIMESTAMP | DEFAULT NOW() | Account creation timestamp |
+| **STUDENTS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future student-specific attributes (e.g., student_code, enrollment_year) |
+| **LECTURERS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future attributes (e.g., department, academic_title) |
+| **ADMINS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future attributes (e.g., permission_level) |
 | **CLASSES** | `id` | UNIQUEIDENTIFIER | PK | Primary key, class identifier |
 | | `class_code` | VARCHAR(50) | NOT NULL | Class code (e.g., SE1801) |
-| | `lecturer_id` | UNIQUEIDENTIFIER | FK -> USERS(id) | Lecturer in charge of the class |
+| | `lecturer_id` | UNIQUEIDENTIFIER | FK -> LECTURERS(user_id) | Lecturer in charge of the class |
 | **CLASS_STUDENTS**| `class_id` | UNIQUEIDENTIFIER | FK -> CLASSES(id) | Foreign key to class |
-| | `student_id` | UNIQUEIDENTIFIER | FK -> USERS(id) | Foreign key to student |
+| | `student_id` | UNIQUEIDENTIFIER | FK -> STUDENTS(user_id) | Foreign key to student |
 | **ASSIGNMENTS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, assignment identifier |
 | | `class_id` | UNIQUEIDENTIFIER | FK -> CLASSES(id) | Foreign key to class |
 | | `title` | VARCHAR(255) | NOT NULL | Assignment title |
@@ -608,7 +640,7 @@ erDiagram
 | | `score_weight` | INT | NOT NULL | Score weight |
 | **SUBMISSIONS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, submission identifier |
 | | `assignment_id` | UNIQUEIDENTIFIER | FK -> ASSIGNMENTS(id)| Belongs to which assignment |
-| | `student_id` | UNIQUEIDENTIFIER | FK -> USERS(id) | Submitter |
+| | `student_id` | UNIQUEIDENTIFIER | FK -> STUDENTS(user_id) | Submitter |
 | | `file_url` | VARCHAR(255) | NOT NULL | File link .zip (S3/Local) |
 | | `file_hash` | VARCHAR(64) | | SHA-256 for integrity verification |
 | | `status` | VARCHAR (ENUM)| NOT NULL | Status (PENDING, QUEUED...) (Mapped as string due to MSSQL limits) |
@@ -625,7 +657,8 @@ erDiagram
 | | `matched_fragments` | NVARCHAR(MAX) | | Array of matching line numbers/blocks |
 | **APPEALS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, appeal identifier |
 | | `submission_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| Appeal for which submission |
-| | `student_id` | UNIQUEIDENTIFIER | FK -> USERS(id)| Foreign key to student |
+| | `student_id` | UNIQUEIDENTIFIER | FK -> STUDENTS(user_id)| Foreign key to student who created the appeal |
+| | `resolved_by` | UNIQUEIDENTIFIER | FK -> LECTURERS(user_id), NULLABLE | Lecturer who resolved the appeal (NULL while PENDING) |
 | | `reason` | TEXT | NOT NULL | Student's appeal reason |
 | | `status` | ENUM | DEFAULT 'PENDING' | Status (PENDING, APPROVED, REJECTED) |
 | | `lecturer_response`| TEXT | | Lecturer's response |
@@ -633,7 +666,7 @@ erDiagram
 | | `resolved_at` | TIMESTAMP | | Timestamp of resolution |
 | **SCORE_AUDIT_LOGS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, log identifier |
 | | `submission_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| Affected submission |
-| | `editor_id` | UNIQUEIDENTIFIER | FK -> USERS(id) | Who made the edit |
+| | `editor_id` | UNIQUEIDENTIFIER | FK -> USERS(id) | Who made the edit (Lecturer or Admin — intentionally references USERS, not a child table) |
 | | `old_score` | FLOAT | | Previous score |
 | | `new_score` | FLOAT | | Updated score |
 | | `reason` | TEXT | NOT NULL | Reason for score change |
