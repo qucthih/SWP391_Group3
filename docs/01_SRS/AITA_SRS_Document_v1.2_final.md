@@ -510,14 +510,19 @@ erDiagram
 
     STUDENTS {
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
+        string student_code
+        string major
     }
 
     LECTURERS {
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
+        string department
+        string title
     }
 
     ADMINS {
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
+        string access_level
     }
 
     CLASSES {
@@ -628,9 +633,14 @@ erDiagram
 | | `full_name` | VARCHAR(100) | NOT NULL | Full name |
 | | `role` | VARCHAR (ENUM)| NOT NULL | Role discriminator: STUDENT, LECTURER, ADMIN (determines which child table to JOIN) |
 | | `created_at` | TIMESTAMP | DEFAULT NOW() | Account creation timestamp |
-| **STUDENTS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future student-specific attributes (e.g., student_code, enrollment_year) |
-| **LECTURERS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future attributes (e.g., department, academic_title) |
-| **ADMINS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS. Reserved for future attributes (e.g., permission_level) |
+| **STUDENTS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
+| | `student_code` | VARCHAR(20) | UNIQUE | Student Roll Number (e.g., SE150000) |
+| | `major` | VARCHAR(50) | | Student's major (e.g., SE, AI, IA) |
+| **LECTURERS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
+| | `department` | VARCHAR(100) | | Department (e.g., Computing Fundamentals) |
+| | `title` | VARCHAR(50) | | Academic title (e.g., PhD, MSc) |
+| **ADMINS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
+| | `access_level` | VARCHAR(50) | | Admin role level (e.g., SuperAdmin, Moderator) |
 | **CLASSES** | `id` | UNIQUEIDENTIFIER | PK | Primary key, class identifier |
 | | `class_code` | VARCHAR(50) | NOT NULL | Class code (e.g., SE1801) |
 | | `lecturer_id` | UNIQUEIDENTIFIER | FK -> LECTURERS(user_id) | Lecturer in charge of the class |
