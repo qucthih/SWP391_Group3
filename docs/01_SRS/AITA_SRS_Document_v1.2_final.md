@@ -28,7 +28,7 @@ This Software Requirements Specification (SRS) document describes all functional
 ### 1.2. Project Scope
 AITA-Intelligent is an intelligent programming education support platform, consisting of:
 - **Web Portal (PWA-ready)** for students and lecturers (Mobile Native is Future Scope).
-- **Automated code grading system** via Judge0 API sandbox (Code Execution Engine).
+- **Automated code grading system** via a custom-built, self-hosted Docker sandbox (Code Execution Engine).
 - **Generative AI module** (GenAI) supporting assignment creation, Clean Code grading, and compilation error explanation.
 - **Source code plagiarism detection tool** based on Abstract Syntax Tree (AST) analysis combined with the Winnowing algorithm.
 - **Background processing queue** (Redis Queue) and team contribution analysis via Git Analytics.
@@ -46,7 +46,7 @@ AITA-Intelligent is an intelligent programming education support platform, consi
 |---|---|
 | **AST** | Abstract Syntax Tree – A tree representation of the logical structure of source code |
 | **Winnowing** | An algorithm for creating digital fingerprints from k-gram sequences for text/code matching |
-| **Sandbox** | An isolated code execution environment (provided by Judge0/Piston API) with limited resources |
+| **Sandbox** | An isolated code execution environment implemented via Docker containers with team-configured resource limits (RAM, CPU, network, PID, filesystem) |
 | **JWT** | JSON Web Token – A stateless authentication standard |
 | **SSO** | Single Sign-On – One-click login via Google OAuth 2.0 |
 | **BullMQ** | A Redis-based queue library for Node.js |
@@ -64,7 +64,7 @@ AITA-Intelligent is an intelligent programming education support platform, consi
 1. Schleimer, S., Wilkerson, D.S., Aiken, A. (2003). *"Winnowing: Local Algorithms for Document Fingerprinting"*. ACM SIGMOD 2003.
 2. Parr, T. (2010). *"Language Implementation Patterns"*. Pragmatic Bookshelf.
 3. Sommerville, I. (2016). *"Software Engineering"*, 10th Edition. Pearson.
-4. Judge0 API Documentation - https://ce.judge0.com/
+4. Docker Engine API Documentation - https://docs.docker.com/engine/api/
 5. OpenAI API Reference – https://platform.openai.com/docs/api-reference
 
 ---
@@ -96,7 +96,8 @@ graph TB
 
     subgraph "Processing Layer"
         REDIS["📦 Redis Queue<br/>(BullMQ)"]
-        SANDBOX["Code Execution Engine<br/>(Judge0 / Piston)"]
+        SANDBOX["Code Execution Engine<br/>(Custom Docker Orchestrator)"]
+        DOCKER["🐳 Docker Engine<br/>(Container Runtime)"]
         AST["AST Engine<br/>(Java - Plagiarism Detection)"]
         LLM["🤖 GenAI Service<br/>(GPT-4o / Gemini API)"]
         GIT["📊 Git Analytics<br/>(Commit Parser + LOC)"]
@@ -117,6 +118,7 @@ graph TB
     REDIS --> AST
     REDIS --> LLM
     
+    SANDBOX --> DOCKER
     SANDBOX --> DB
     AST --> DB
     LLM --> DB
@@ -136,7 +138,7 @@ graph TB
 | # | Subsystem | Description | Key Technology |
 |---|---|---|---|
 | 1 | Portal & Auth | User interface, authentication, authorization | React, Vite, Tailwind, JWT, Google OAuth 2.0 |
-| 2 | Code Execution Engine | Automated code grading in isolated sandbox | Judge0 API, Node.js |
+| 2 | Code Execution Engine | Automated code grading in self-managed isolated Docker containers | Docker Engine API (Dockerode), Node.js |
 | 3 | GenAI Core & Review Hub | Assignment generation, Clean Code grading, error explanation | OpenAI GPT-4o / Gemini API, LangChain |
 | 4 | AST Plagiarism Detection | Source code plagiarism detection using AST + Winnowing | ANTLR4 (Java grammar), FastAPI wrapper |
 | 5 | Redis Queue & Git Analytics | Background processing queue, team contribution analysis | BullMQ, Redis, Git CLI Parser |
@@ -153,7 +155,7 @@ graph LR
     LECTURER["👩‍🏫 Lecturer"]
     ADMIN["🛡️ Administrator"]
     AI["🤖 AI Engine"]
-    CODE_EXEC["🐳 Code Execution Engine<br/>(Judge0/Piston)"]
+    CODE_EXEC["🐳 Code Execution Engine<br/>(Custom Docker Sandbox)"]
 
     STUDENT -->|Submit, View grades, Appeal| SYSTEM(("AITA System"))
     LECTURER -->|Create assignments, Grade, Manage classes| SYSTEM
@@ -170,7 +172,7 @@ graph LR
 | **Lecturer** | Lecturers create classes, design exams, manage grading rubrics, monitor results, and handle complaints | Create/edit/delete classes, import student lists from Excel, create assignments + test cases, request AI-generated assignments/rubrics, view statistical reports, handle appeals, view Git Analytics |
 | **Administrator** | System administrators manage accounts, configure Sandbox settings, and monitor system operations | Manage users, configure Sandbox (RAM, CPU limits), manage API keys (OpenAI/Gemini), view audit logs |
 | **AI Engine** | Automated system actor – Not a human. Performs content generation and code quality evaluation tasks | Generate assignments from lecturer descriptions, generate rubrics, evaluate Clean Code (SOLID, naming, architecture), explain compilation errors in natural language |
-| **Code Execution Engine** | Automated system actor. An isolated runtime that executes student-submitted source code | Send request to Judge0/Piston API, receive compile/run results, enforce timeout at API call level |
+| **Code Execution Engine** | Automated system actor. An isolated runtime that executes student-submitted source code | Create an isolated Docker container per submission, compile and execute code inside it, enforce resource limits (RAM/CPU/network/PID) and timeout directly via Docker Engine API, capture stdout/stderr, then destroy the container |
 
 ---
 
@@ -202,7 +204,7 @@ graph LR
 | ID | User Story | Acceptance Criteria | Priority |
 |---|---|---|---|
 | **US-12** | As the **system**, when receiving a .zip submission file, I must **enqueue the submission into Redis (BullMQ)** for asynchronous processing, to avoid blocking the main API thread. | - Submission enqueued with metadata: submissionId, studentId, language<br/>- Queue has retry mechanism (max 3 retries) on job failure<br/>- API immediately returns status 202 Accepted | 🔴 High |
-| **US-13** | As the **Code Execution Engine**, when receiving a job from Redis Queue, I must **execute student code in an isolated sandbox** (using Judge0/Piston) with limits: 512MB RAM, limited CPU, **disabled network access**, run with test cases, then return results. | - Sandbox auto-cleans after completion or timeout (30 seconds)<br/>- Judge0/Piston handles: process isolation, resource limiting, security<br/>- Return results: Passed/Failed for each test case + stdout/stderr | 🔴 High |
+| **US-13** | As the **Code Execution Engine**, when receiving a job from Redis Queue, I must **execute student code in a self-managed isolated Docker container** with limits: 512MB RAM, limited CPU, **disabled network access (`--network=none`)**, run with test cases, then return results. | - Sandbox auto-cleans after completion or timeout (30 seconds)<br/>- Code Execution Engine enforces via Docker: process isolation (namespaces), resource limiting (cgroups: `--memory`, `--cpus`, `--pids-limit`), security (seccomp profile, read-only filesystem, non-root user)<br/>- Return results: Passed/Failed for each test case + stdout/stderr | 🔴 High |
 | **US-14** | As the **AST Engine system**, after code execution finishes, I must **convert source code to an AST, remove surface-level disguises** (variable names, comments, function order), **apply Winnowing** to create fingerprints, and **compare against all other submissions** in the same assignment to calculate similarity %. | - **Primary language: Java** (ANTLR parser)<br/>- *Python/C# support planned for future iterations*<br/>- Remove: variable names, function names, comments, whitespace, function order<br/>- Winnowing: k-gram size = 25, window size = 40<br/>- Store fingerprints in `ASTFingerprints` table<br/>- Create Similarity Matrix: all submission pairs | 🔴 High |
 | **US-15** | As the **AI system (LLM)**, after the Code Execution Engine finishes grading, I must **evaluate source code quality** (Clean Code, SOLID, naming convention, layer architecture) and **explain compilation errors in Vietnamese natural language** so students can understand. | - Use GPT-4o or Gemini API (exponential backoff retry)<br/>- Chain-of-Thought + Few-Shot Learning prompts<br/>- Return: Clean Code score (0-100), specific comments per file, compilation error explanation if any<br/>- Timeout: max 60 seconds/request | 🟡 Medium |
 
@@ -216,8 +218,8 @@ graph LR
 | **Primary Actor** | Student |
 | **Secondary Actors** | Code Execution Engine, AST Engine, AI Engine |
 | **Preconditions** | Student is logged in, Assignment deadline has not passed, Student has submitted fewer than 5 times for this assignment |
-| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine sends submission to Judge0 API, receives test case results<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score; updates status to `COMPLETED` if similarity ≤ 60%, or `SCORE_WITHHELD` if similarity > 60% (pending lecturer review)<br/>13. Sends real-time results to Student via WebSocket |
-| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb, /proc access, disk abuse) → Judge0 detects malicious signal → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**8c.** Code execution exceeds 30 seconds without malicious signal → Status `TIMEOUT`, notify student to optimize algorithm<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
+| **Main Flow** | 1. Student selects Assignment from the list<br/>2. Student uploads `.zip` file containing source code<br/>3. System validates file (checks size ≤ 10MB, .zip format)<br/>4. System hashes file with SHA-256 for integrity verification<br/>5. System creates `Submission` record with `PENDING` status<br/>6. System pushes job to Redis Queue (BullMQ)<br/>7. Redis Queue dispatches job to Worker<br/>8. Code Execution Engine creates an isolated Docker container, compiles and executes the code inside it, then captures test case results<br/>9. System updates status to `GRADING`<br/>10. AST Engine parses source code, creates fingerprint, checks for plagiarism<br/>11. AI Engine evaluates Clean Code + explains errors<br/>12. System aggregates final score; updates status to `COMPLETED` if similarity ≤ 60%, or `SCORE_WITHHELD` if similarity > 60% (pending lecturer review)<br/>13. Sends real-time results to Student via WebSocket |
+| **Alternative Flow** | **4a.** File is corrupt or exceeds size limit → Display error, request resubmission<br/>**8a.** Student code contains malware (fork bomb, /proc access, disk abuse) → Code Execution Engine detects malicious signal via Docker/seccomp → Status `SECURITY_VIOLATION`<br/>**8b.** Code fails to compile → Return compilation error + AI error explanation<br/>**8c.** Code execution exceeds 30 seconds without malicious signal → Status `TIMEOUT`, notify student to optimize algorithm<br/>**10a.** Similarity detected > 60% → Flag as `PLAGIARISM_DETECTED`, notify lecturer |
 | **Exception Flow** | **7a.** Redis Queue is full or down → System retries 3 times, if still failing → Status `QUEUE_ERROR`, notify Admin<br/>**11a.** OpenAI/Gemini API timeout → Skip Clean Code score, grade based on test cases + AST, mark "AI Review Pending" |
 | **Postconditions** | `Submission` record is updated with final status and score. Student receives results on the interface. |
 
@@ -266,7 +268,7 @@ graph TB
         UC11["📊 View Git Analytics<br/>(Anti Free-riding)"]
         UC12["⚙️ Manage Users<br/>& System Configuration"]
         UC13["📦 Enqueue Job to<br/>Redis Queue"]
-        UC14["🐳 Grade Code via<br/>Judge0 API"]
+        UC14["🐳 Grade Code via<br/>Docker Sandbox"]
         UC15["🌳 AST Analysis +<br/>Winnowing Plagiarism"]
         UC16["🤖 Clean Code Review +<br/>Error Explanation (LLM)"]
     end
@@ -307,7 +309,7 @@ flowchart TD
     F --> G["Push job to<br/>Redis Queue (BullMQ)"]
     G --> H["Redis Queue<br/>receives and dispatches job"]
 
-    H --> I["🤖 Code Execution Engine<br/>(Send code to Judge0 API)"]
+    H --> I["🐳 Code Execution Engine<br/>(Create Docker container, compile & run code)"]
     I --> M{"Compilation<br/>successful?"}
     M -->|"❌ Compilation error"| N["Capture stderr"]
     N --> O["🤖 AI explains<br/>compilation error (LLM)"]
@@ -315,8 +317,8 @@ flowchart TD
     M -->|"✅ Successful"| Q["Run each Test Case<br/>(StdIn → StdOut)"]
 
     Q --> R{"Execution<br/>issue detected?"}
-    R -->|"⏱️ Timeout only<br/>(> 30s, no malicious signal)"| S_TIMEOUT["Judge0 terminates execution<br/>status = TIMEOUT"]
-    R -->|"🚫 Malware detected<br/>(fork bomb, /proc access, disk abuse)"| S_SECURITY["Judge0 terminates execution<br/>status = SECURITY_VIOLATION"]
+    R -->|"⏱️ Timeout only<br/>(> 30s, no malicious signal)"| S_TIMEOUT["Code Execution Engine kills container<br/>(docker kill), status = TIMEOUT"]
+    R -->|"🚫 Malware detected<br/>(fork bomb, /proc access, disk abuse)"| S_SECURITY["Code Execution Engine kills container<br/>(docker kill), status = SECURITY_VIOLATION"]
     R -->|"✅ Completed normally"| T["Compare Output vs<br/>Expected Output"]
 
     T --> U["Calculate Test Case scores"]
@@ -376,9 +378,17 @@ sequenceDiagram
     Redis-)Sandbox: Worker picks up Job
     
     rect rgb(240, 248, 255)
-        note right of Sandbox: Phase 1: Compile & Run Tests (Judge0 API)
-        Gateway->>Sandbox: POST /submissions (code & test cases)
-        Sandbox-->>Gateway: Return compilation & execution results
+        note right of Sandbox: Phase 1: Compile & Run Tests (Custom Docker Sandbox)
+        Gateway->>Sandbox: Forward submission (code & test cases)
+        Sandbox->>Sandbox: docker run --memory=512m --cpus=1 --network=none (create container)
+        Sandbox->>Sandbox: Compile & execute code inside container
+        alt Timeout (> 30s) or malware detected
+            Sandbox->>Sandbox: docker kill (force-terminate container)
+            Sandbox-->>Gateway: Return status TIMEOUT / SECURITY_VIOLATION
+        else Compile & run successfully
+            Sandbox->>Sandbox: docker rm -f (destroy container after run)
+            Sandbox-->>Gateway: Return compilation & execution results
+        end
     end
 
     rect rgb(240, 255, 240)
@@ -765,8 +775,8 @@ flowchart TD
 
 | ID | Requirement | Measurement Criteria |
 |---|---|---|
-| **NFR-01** | Code Execution Engine (Judge0/Piston) must completely isolate resources | RAM ≤ 512MB, limited CPU shares, **external network 100% disabled** (provided by Judge0/Piston out-of-the-box) |
-| **NFR-02** | Execution sandbox must defend against common malware | Block: fork bomb, symlink escape, /proc mount, disk exhaustion (Judge0/Piston handles natively) |
+| **NFR-01** | Code Execution Engine must completely isolate resources | RAM ≤ 512MB (`--memory`), limited CPU shares (`--cpus`), **external network 100% disabled** (`--network=none`) — self-configured via Docker Engine API |
+| **NFR-02** | Execution sandbox must defend against common malware | Block: fork bomb (`--pids-limit`), symlink escape (read-only filesystem `--read-only`), /proc mount (custom seccomp profile), disk exhaustion (`--storage-opt size=` quota) — all self-implemented and verified via dedicated security test cases (not standard unit tests) |
 | **NFR-03** | JWT authentication must be stored in HttpOnly Cookie | Cookie inaccessible from JavaScript (XSS prevention) |
 | **NFR-04** | Google SSO must only accept FPT email domains | Whitelist: `@fpt.edu.vn`, `@fe.edu.vn` |
 | **NFR-05** | API keys (OpenAI, Gemini) must not be hard-coded | Store in environment variables (.env), never commit to Git |
@@ -786,7 +796,7 @@ flowchart TD
 | ID | Requirement | Measurement Criteria |
 |---|---|---|
 | **NFR-10** | Redis Queue must support batch grading | Process ≥ 50 concurrent submissions without blocking API gateway |
-| **NFR-11** | System must support adding new programming languages | Configure new language ID in Judge0 API + add ANTLR grammar for AST support |
+| **NFR-11** | System must support adding new programming languages | Build and register a new Docker image with the required language runtime + add ANTLR grammar for AST support |
 
 ### 7.4. Reliability
 
@@ -794,7 +804,7 @@ flowchart TD
 |---|---|---|
 | **NFR-12** | Bulk student import must use DB Transaction | Import all successfully OR rollback entirely (ACID) |
 | **NFR-13** | Redis Queue must have retry mechanism | Max 3 retries with exponential backoff |
-| **NFR-14** | Sandbox resources must be cleaned after completion | Judge0 API handles process isolation and cleanup; system verifies via status polling |
+| **NFR-14** | Sandbox resources must be cleaned after completion | Code Execution Engine must explicitly destroy the container (`docker rm -f`) after execution or timeout; verified via Docker event listener, not third-party polling |
 
 ### 7.5. Usability
 
@@ -814,7 +824,7 @@ flowchart TD
 - **AST Engine:** Python 3.11+ with FastAPI, ANTLR4 (`antlr4-python3-runtime` for Java grammar)
 - **Database:** Microsoft SQL Server 2019+
 - **Message Queue:** Redis 7+ with BullMQ
-- **Code Execution:** Judge0 / Piston (self-hosted or API)
+- **Code Execution:** Custom Docker-based sandbox orchestrated via Docker Engine API (e.g., Dockerode for Node.js)
 - **CI/CD:** GitHub Actions
 - **Cloud Deploy:** Azure / AWS / Vercel (team's choice)
 
@@ -826,7 +836,7 @@ flowchart TD
 | **AST Plagiarism Detection** | Java only (ANTLR parser) | Add Python (`ast` module), C# (Roslyn) |
 | **GenAI Assignment Generation (US-08)** | Basic draft generation (assignment description + sample test cases) | Full rubric auto-generation, multi-round refinement |
 | **Git Analytics (US-11)** | Basic metrics: commits count, LOC per member | PR analysis, contribution timeline charts, automated free-rider scoring |
-| **Code Execution Engine** | Use Judge0/Piston API (pre-built sandbox) | Custom Docker containers with fine-grained resource control |
+| **Code Execution Engine** | Custom Docker containers with basic resource limits (memory, CPU, network, PID) | Stronger isolation via gVisor or Firecracker microVMs; per-language pre-warmed container pools for lower latency |
 | **Mobile App** | Responsive web (PWA-ready) | Native React Native / Expo app |
 
 ### 8.3. Risk Assessment
@@ -838,18 +848,19 @@ flowchart TD
 | R-03 | **Audit Trail for Manual Edits** — Lecturer manually overrides a score but no log is kept | Disputes during P2P Defense cannot be resolved with evidence | Log every manual score edit: `editor_id`, `old_score`, `new_score`, `reason`, `timestamp`. Immutable audit table. |
 | R-04 | **False-Positive Plagiarism** — AST + Winnowing flags legitimate code as plagiarism (e.g., boilerplate, starter code) | Students unfairly penalized, appeals increase | Allow lecturer to whitelist specific code patterns/files. Display similarity breakdown (which functions matched). Student can appeal with explanation. |
 | R-05 | **Data Retention Policy** — No defined policy for how long submission files, logs, and personal data are stored | GDPR/PDPA compliance risk, storage costs grow unbounded | Define retention: Submission files = 1 semester, Sandbox logs = 30 days (NFR-18), Personal data = until account deletion. Auto-purge scripts run monthly. |
+| R-06 | **Custom Sandbox Security Gaps** — Self-built Docker isolation may miss edge cases (e.g., kernel-level exploits, container escape) that a mature third-party sandbox would already handle | Security vulnerability could allow malicious code to affect the host server | Follow Docker security hardening checklist (non-root user, read-only FS, drop all capabilities except required, seccomp/AppArmor profile); schedule a dedicated security review sprint before demo; document known limitations in the Risk Assessment for P2P Defense transparency |
 
 ### 8.4. Business Constraints
 - The system only serves students and lecturers belonging to FPT University (verified by email domain).
 - Each submission is limited to a maximum of 10MB (.zip file).
-- Maximum code execution time is 30 seconds per submission (enforced by Judge0 API timeout).
+- Maximum code execution time is 30 seconds per submission (enforced by the Code Execution Engine's own timeout controller, which force-kills the container via `docker kill`).
 - OpenAI/Gemini API key uses a single key with exponential backoff retry.
 
 ### 8.5. Project Constraints
 - Development timeline: 10 weeks.
 - Development team: 4-6 students.
 - Code must pass linting (ESLint/Prettier for TypeScript, Flake8 for Python).
-- Unit test coverage ≥ 80% on core modules (scoring, validation, matching logic - excluding live Judge0/AI integration paths).
+- Unit test coverage ≥ 80% on core modules (scoring, validation, matching logic - excluding live Docker sandbox/AI integration paths).
 
 ---
 
