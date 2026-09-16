@@ -1,0 +1,7 @@
+{
+    "name": "swp391-aita",
+    "private": true,
+    "workspaces": [
+        "apps/*"
+    ]
+}

@@ -1,0 +1,7 @@
+# Framework Web API tốc độ cao
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+
+# Thư viện runtime phân tích cây cú pháp AST theo SRS mục 8.1
+antlr4-python3-runtime==4.13.2

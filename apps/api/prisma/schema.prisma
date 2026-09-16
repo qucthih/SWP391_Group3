@@ -1,184 +1,241 @@
 // ==============================================================================
-// PRISMA SCHEMA CHO DỰ ÁN HỆ THỐNG TRỢ LÝ AITA-INTELLIGENT (SWP391 - 10 WEEKS)
-// Cơ sở dữ liệu: Microsoft SQL Server (MSSQL) - Đồng bộ chuẩn hóa theo tài liệu SRS
+// PRISMA SCHEMA CHO HỆ THỐNG AITA-INTELLIGENT (SWP391 - Nhóm 3)
+// Cơ sở dữ liệu: Microsoft SQL Server 2019+ (MSSQL)
+// Đối chiếu: SRS v1.2 Mục 6.5 (ERD) & Mục 6.6 (Data Dictionary)
 // ==============================================================================
 
-// Cấu hình sinh mã nguồn: Prisma sẽ đọc file này và tự sinh thư viện TypeScript tương ứng
 generator client {
   provider = "prisma-client-js"
 }
 
-// Cấu hình nguồn dữ liệu: Kết nối tới PostgreSQL thông qua biến DATABASE_URL từ file .env
 datasource db {
-  provider = "postgresql"
+  provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
 // ==============================================================================
-// ENUMS (TẬP HỢP CÁC HẰNG SỐ TRẠNG THÁI)
-// ==============================================================================
-
-// Vai trò người dùng trong hệ thống AITA
-enum Role {
-  STUDENT   // Sinh viên: nộp bài tập, xem điểm, xem nhận xét của AI
-  LECTURER  // Giảng viên: tạo lớp, tạo đề thi, quản lý sinh viên, duyệt phúc khảo
-  ADMIN     // Quản trị viên: phân quyền, cấu hình hệ thống
-}
-
-// Vòng đời trạng thái xử lý của một bài nộp (Submission)
-enum SubmissionStatus {
-  PENDING    // Bài nộp đang nằm trong hàng đợi Redis (BullMQ), chưa tới lượt chấm
-  PROCESSING // Đang được đưa vào Docker Sandbox để chạy test case hoặc phân tích AST
-  COMPLETED  // Đã hoàn thành chấm điểm, kiểm tra đạo văn và đánh giá Clean Code thành công
-  FAILED     // Chấm thất bại (ví dụ: lỗi biên dịch compile error, timeout 512MB RAM, sandbox crash)
-}
-
-// ==============================================================================
-// 1. BẢNG USERS: Quản lý thông tin tài khoản người dùng
+// 1. BẢNG USERS: Tài khoản người dùng chung
 // ==============================================================================
 model User {
-  id           String        @id @default(uuid()) // Khóa chính: dùng định danh UUID ngẫu nhiên bảo mật cao
-  email        String        @unique              // Email FPT (@fpt.edu.vn hoặc @fe.edu.vn), không được trùng lặp
-  passwordHash String?                            // Mật khẩu đã băm (Null nếu đăng nhập qua Google OAuth SSO)
-  fullName     String                             // Họ và tên đầy đủ của người dùng
-  role         Role          @default(STUDENT)    // Mặc định tạo tài khoản là vai trò Sinh viên
-  avatarUrl    String?                            // Đường dẫn ảnh đại diện (nếu có)
-  createdAt    DateTime      @default(now())      // Thời điểm tạo tài khoản
-  updatedAt    DateTime      @updatedAt           // Tự động cập nhật thời điểm sửa thông tin
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  fullName     String    @map("full_name")
+  role         String    // "STUDENT", "LECTURER", "ADMIN"
+  createdAt    DateTime  @default(now()) @map("created_at")
 
-  // QUAN HỆ (RELATIONS):
-  classesLectured Class[]       @relation("LecturerClasses") // Danh sách lớp do Giảng viên này làm chủ nhiệm (1 Giảng viên - N Lớp)
-  enrollments     ClassMember[]                              // Danh sách các lớp mà Sinh viên này đang tham gia
-  submissions     Submission[]                               // Danh sách các bài nộp code do Sinh viên này thực hiện
+  // Quan hệ 1-1 với các bảng con phân quyền:
+  studentProfile  Student?
+  lecturerProfile Lecturer?
+  adminProfile    Admin?
 
-  @@map("users") // Đặt tên bảng thực tế trong Database PostgreSQL là chữ thường số nhiều
+  // Quan hệ lịch sử sửa điểm (ScoreAuditLog trỏ tới User):
+  auditLogs ScoreAuditLog[]
+
+  @@map("users")
 }
 
 // ==============================================================================
-// 2. BẢNG CLASSES: Quản lý lớp học môn học
+// 2. BẢNG STUDENTS: Thông tin chi tiết sinh viên (1-1 với Users)
+// ==============================================================================
+model Student {
+  userId      String   @id @map("user_id")
+  studentCode String   @unique @map("student_code")
+  major       String?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Quan hệ:
+  classEnrollments ClassStudent[]
+  submissions      Submission[]
+  appeals          Appeal[]
+
+  @@map("students")
+}
+
+// ==============================================================================
+// 3. BẢNG LECTURERS: Thông tin chi tiết giảng viên (1-1 với Users)
+// ==============================================================================
+model Lecturer {
+  userId     String   @id @map("user_id")
+  department String?
+  title      String?
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Quan hệ:
+  managedClasses Class[]
+  resolvedAppeals Appeal[] @relation("LecturerResolvedAppeals")
+
+  @@map("lecturers")
+}
+
+// ==============================================================================
+// 4. BẢNG ADMINS: Thông tin chi tiết quản trị viên (1-1 với Users)
+// ==============================================================================
+model Admin {
+  userId      String  @id @map("user_id")
+  accessLevel String? @map("access_level")
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admins")
+}
+
+// ==============================================================================
+// 5. BẢNG CLASSES: Lớp học do Giảng viên quản lý
 // ==============================================================================
 model Class {
-  id          String        @id @default(uuid()) // Khóa chính lớp học
-  code        String        @unique              // Mã lớp (Ví dụ: SE1801-SWP391), là duy nhất
-  name        String                             // Tên môn học / lớp học (Ví dụ: Kỹ thuật phần mềm nhóm 3)
-  description String?                            // Mô tả ngắn về yêu cầu môn học
-  lecturerId  String                             // Khóa ngoại: ID của Giảng viên phụ trách lớp
-  lecturer    User          @relation("LecturerClasses", fields: [lecturerId], references: [id])
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id          String         @id @default(uuid())
+  classCode   String         @map("class_code")
+  lecturerId  String         @map("lecturer_id")
 
-  // QUAN HỆ:
-  members     ClassMember[] // Danh sách sinh viên thuộc lớp học này
-  exams       Exam[]        // Danh sách các đề thi / bài tập được giao cho lớp này
+  lecturer    Lecturer       @relation(fields: [lecturerId], references: [userId], onUpdate: NoAction)
+  students    ClassStudent[]
+  assignments Assignment[]
 
   @@map("classes")
 }
 
-// Bảng trung gian giải quyết quan hệ Nhiều - Nhiều (N - N) giữa Lớp học và Sinh viên
-model ClassMember {
-  id        String   @id @default(uuid())
-  classId   String                        // Khóa ngoại trỏ đến bảng classes
-  userId    String                        // Khóa ngoại trỏ đến bảng users
-  joinedAt  DateTime @default(now())      // Ngày tham gia vào lớp
+// ==============================================================================
+// 6. BẢNG CLASS_STUDENTS: Sinh viên thuộc lớp nào (Quan hệ N-N)
+// ==============================================================================
+model ClassStudent {
+  classId   String  @map("class_id")
+  studentId String  @map("student_id")
 
-  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class     Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   Student @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
 
-  @@unique([classId, userId]) // Một sinh viên chỉ có thể vào 1 lớp duy nhất một lần
-  @@map("class_members")
+  @@id([classId, studentId])
+  @@map("class_students")
 }
 
 // ==============================================================================
-// 3. BẢNG EXAMS: Quản lý Đề thi / Bài tập thực hành được giao
+// 7. BẢNG ASSIGNMENTS: Đề bài / Bài tập lập trình
 // ==============================================================================
-model Exam {
-  id          String           @id @default(uuid()) // Khóa chính đề thi
-  title       String                                // Tiêu đề bài tập (Ví dụ: Assignment 1 - OOP Car Rental)
-  description String                                // Đề bài chi tiết (có thể do GenAI tạo tự động)
-  classId     String                                // Khóa ngoại trỏ về lớp học nhận bài thi này
-  startTime   DateTime                              // Thời gian bắt đầu mở cổng nộp bài
-  endTime     DateTime                              // Hạn chót (Deadline) nộp bài
-  maxScore    Float            @default(10.0)       // Thang điểm tối đa (mặc định thang 10)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+model Assignment {
+  id              String       @id @default(uuid())
+  classId         String       @map("class_id")
+  title           String
+  description     String?      @db.Text
+  language        String       // "Java", "Python", "C#"
+  deadline        DateTime
+  gradingCriteria String?      @map("grading_criteria") @db.NVarChar(Max)
 
-  // QUAN HỆ:
-  class       Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
-  submissions Submission[]                          // Tất cả bài nộp của sinh viên cho đề thi này
-  criteria    CriterionScore[]                      // Các tiêu chí chấm điểm thuộc về đề thi này
+  class           Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  testCases       TestCase[]
+  submissions     Submission[]
 
-  @@map("exams")
+  @@map("assignments")
 }
 
 // ==============================================================================
-// 4. BẢNG SUBMISSIONS: Quản lý bài nộp mã nguồn của sinh viên
+// 8. BẢNG TEST_CASES: Bộ test cases chấm code trong Docker Sandbox
+// ==============================================================================
+model TestCase {
+  id             String     @id @default(uuid())
+  assignmentId   String     @map("assignment_id")
+  inputData      String?    @map("input_data") @db.Text
+  expectedOutput String?    @map("expected_output") @db.Text
+  scoreWeight    Int        @map("score_weight")
+
+  assignment     Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@map("test_cases")
+}
+
+// ==============================================================================
+// 9. BẢNG SUBMISSIONS: Bài nộp của sinh viên
 // ==============================================================================
 model Submission {
-  id              String           @id @default(uuid()) // Mã bài nộp duy nhất
-  examId          String                                // Nộp cho đề thi nào
-  studentId       String                                // Sinh viên nào nộp
-  sourceCodeUrl   String                                // Đường dẫn lưu trữ file .zip / code của bài nộp
-  status          SubmissionStatus @default(PENDING)    // Trạng thái chấm hiện tại
-  totalScore      Float?                                // Tổng điểm đạt được (chỉ có sau khi chấm xong)
-  compileLog      String?                               // Lưu lại log StdOut / StdErr khi chạy trong Docker Sandbox
-  submittedAt     DateTime         @default(now())      // Thời điểm sinh viên bấm nộp bài
+  id           String            @id @default(uuid())
+  assignmentId String            @map("assignment_id")
+  studentId    String            @map("student_id")
+  fileUrl      String            @map("file_url")
+  fileHash     String?           @map("file_hash") // SHA-256
+  status       String            // "PENDING", "RUNNING", "COMPLETED", "SCORE_WITHHELD", "FAILED"
+  totalScore   Float?            @map("total_score")
+  aiFeedback   String?           @map("ai_feedback") @db.Text
+  submittedAt  DateTime          @default(now()) @map("submitted_at")
 
-  // QUAN HỆ:
-  exam            Exam             @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student         User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  fingerprints    ASTFingerprint[]                      // Tập hợp các "vân tay số" cây AST trích xuất từ bài nộp này
-  ruleScores      RuleScore[]                           // Kết quả chấm các luật Clean Code cho bài nộp này
+  assignment   Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      Student           @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
+
+  // Quan hệ:
+  fingerprint        ASTFingerprint?
+  plagiarismMatches1 PlagiarismMatch[]  @relation("Submission1Matches")
+  plagiarismMatches2 PlagiarismMatch[]  @relation("Submission2Matches")
+  appeal             Appeal?
+  auditLogs          ScoreAuditLog[]
 
   @@map("submissions")
 }
 
 // ==============================================================================
-// 5. BẢNG AST_FINGERPRINTS: Bảng vân tay số cây AST (Trọng tâm RBL & Winnowing)
+// 10. BẢNG AST_FINGERPRINTS: Dữ liệu vân tay AST (Trọng tâm RBL Winnowing)
 // ==============================================================================
 model ASTFingerprint {
-  id            String     @id @default(uuid())
-  submissionId  String                          // Thuộc về bài nộp nào
-  hashValue     BigInt                          // Giá trị băm (Hash) của k-gram đại diện cho một cụm nhánh cây cú pháp AST
-  position      Int                             // Vị trí (chỉ số dòng/token) xuất hiện đoạn code này
-  createdAt     DateTime   @default(now())
+  id              String     @id @default(uuid())
+  submissionId    String     @unique @map("submission_id")
+  fingerprintData String     @map("fingerprint_data") @db.NVarChar(Max)
 
-  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission      Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
-  // Đánh chỉ mục Index trên hashValue: Giúp hệ thống tìm kiếm và đối chiếu trùng lặp
-  // giữa hàng nghìn bài nộp trong lớp học trong thời gian tính bằng mili-giây!
-  @@index([hashValue])
   @@map("ast_fingerprints")
 }
 
 // ==============================================================================
-// 6. BẢNG RULE_SCORES: Kết quả kiểm tra luật tĩnh & AI Semantic Review
+// 11. BẢNG PLAGIARISM_MATCHES: Kết quả so khớp đạo văn giữa 2 bài nộp
 // ==============================================================================
-model RuleScore {
-  id           String     @id @default(uuid())
-  submissionId String                          // Thuộc về bài nộp nào
-  ruleName     String                          // Tên luật (Ví dụ: "NO_INFINITE_LOOP", "CHECK_SOLID_SRP", "FUNCTION_LENGTH")
-  score        Float                           // Điểm đạt được của luật này
-  maxScore     Float                           // Điểm tối đa của luật
-  feedback     String?                         // Lời giải thích, nhận xét tự nhiên của GenAI hướng dẫn sinh viên sửa lỗi
-  createdAt    DateTime   @default(now())
+model PlagiarismMatch {
+  id                String     @id @default(uuid())
+  submission1Id     String     @map("submission_1_id")
+  submission2Id     String     @map("submission_2_id")
+  similarityPercent Float      @map("similarity_percent")
+  matchedFragments  String?    @map("matched_fragments") @db.NVarChar(Max)
 
-  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submission1       Submission @relation("Submission1Matches", fields: [submission1Id], references: [id], onUpdate: NoAction)
+  submission2       Submission @relation("Submission2Matches", fields: [submission2Id], references: [id], onUpdate: NoAction)
 
-  @@map("rule_scores")
+  @@map("plagiarism_matches")
 }
 
 // ==============================================================================
-// 7. BẢNG CRITERION_SCORES: Barem tiêu chí chấm điểm của Đề thi
+// 12. BẢNG APPEALS: Đơn khiếu nại / phúc khảo điểm của sinh viên
 // ==============================================================================
-model CriterionScore {
-  id          String   @id @default(uuid())
-  examId      String                          // Thuộc về đề thi nào
-  name        String                          // Tên tiêu chí (Ví dụ: "Đúng Test Cases", "Kiến trúc Code", "Độ tương đồng AST < 20%")
-  description String?                         // Hướng dẫn chấm chi tiết của tiêu chí
-  weight      Float                           // Trọng số (Ví dụ: 0.5 tương ứng chiếm 50% tổng điểm bài thi)
-  createdAt   DateTime @default(now())
+model Appeal {
+  id               String     @id @default(uuid())
+  submissionId     String     @unique @map("submission_id")
+  studentId        String     @map("student_id")
+  resolvedBy       String?    @map("resolved_by")
+  reason           String     @db.Text
+  status           String     @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  lecturerResponse String?    @map("lecturer_response") @db.Text
+  createdAt        DateTime   @default(now()) @map("created_at")
+  resolvedAt       DateTime?  @map("resolved_at")
 
-  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  student          Student    @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
+  resolvedLecturer Lecturer?  @relation("LecturerResolvedAppeals", fields: [resolvedBy], references: [userId], onUpdate: NoAction)
 
-  @@map("criterion_scores")
+  @@map("appeals")
+}
+
+// ==============================================================================
+// 13. BẢNG SCORE_AUDIT_LOGS: Nhật ký chỉnh sửa điểm (Audit Trail cho P2P Defense)
+// ==============================================================================
+model ScoreAuditLog {
+  id           String     @id @default(uuid())
+  submissionId String     @map("submission_id")
+  editorId     String     @map("editor_id")
+  oldScore     Float?     @map("old_score")
+  newScore     Float      @map("new_score")
+  reason       String     @db.Text
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  editor       User       @relation(fields: [editorId], references: [id], onUpdate: NoAction)
+
+  @@map("score_audit_logs")
 }
