@@ -193,7 +193,7 @@ graph LR
 | ID | User Story | Acceptance Criteria | Priority |
 |---|---|---|---|
 | **US-06** | As a **lecturer**, I want to **create a new class and import student lists from an Excel file**, to save time on manual data entry. | - Upload .xlsx file, system auto-parses columns: Student ID, Full Name, Email<br/>- Use DB Transaction to ensure full import or rollback on error<br/>- Report successful/failed import counts | 🔴 High |
-| **US-07** | As a **lecturer**, I want to **create Assignments with test cases** (StdIn/StdOut format), so the system can automatically grade student submissions. | - Input title, description, deadline<br/>- Add multiple test cases (each with: Input, Expected Output, score weight)<br/>- Select programming language for Sandbox (Java, Python, C#) | 🔴 High |
+| **US-07** | As a **lecturer**, I want to **create Assignments with test cases** (StdIn/StdOut format), so the system can automatically grade student submissions. | - Input title, description, deadline<br/>- Add multiple test cases (each with: Input, Expected Output, score weight)<br/>- Select programming language for Sandbox (Java, Python, C#)<br/>- Lecturer can import/clone an existing assignment (title, description, test cases) from another class they teach, then edit before publishing | 🔴 High |
 | **US-08** | *(Simplified – MVP)* As a **lecturer**, I want to **request AI to generate a basic assignment draft** from my brief description, to reduce assignment preparation time. | - Lecturer enters a prompt describing the topic (e.g., "Assignment on linked list")<br/>- AI returns: basic assignment description and sample test cases<br/>- Lecturer must review and finalize before saving<br/>- *MVP Note: Full rubric auto-generation is a stretch goal* | 🟡 Medium |
 | **US-09** | As a **lecturer**, I want to **view a Dashboard with overview statistics** (submission rate, score distribution, plagiarism suspects) for each assignment, to quickly assess class performance. | - Pie chart: submission rate<br/>- Bar chart: score distribution<br/>- Table: Top 10 submission pairs with highest similarity % (AST Plagiarism) | 🔴 High |
 | **US-10** | As a **lecturer**, I want to **handle student appeals** (Accept or Reject with reason), to ensure fairness in grading. | - List of Pending appeals<br/>- Review code + original grading results<br/>- Accept (re-grade) or Reject (with reason) button | 🟡 Medium |
@@ -231,8 +231,8 @@ graph LR
 | **Primary Actor** | Lecturer |
 | **Secondary Actors** | AI Engine |
 | **Preconditions** | Lecturer is logged in, has created at least 1 class |
-| **Main Flow** | 1. Lecturer selects class and clicks "Create New Assignment"<br/>2. Lecturer enters: Title, General Description, Programming Language, Deadline<br/>3. (Optional) Lecturer clicks "Generate with AI": enters a topic description prompt<br/>4. AI Engine returns: Detailed assignment, sample Input/Output, Grading Rubric<br/>5. Lecturer reviews and edits AI-generated content<br/>6. Lecturer adds Test Cases (StdIn → Expected StdOut) manually or from AI<br/>7. Lecturer clicks "Save & Publish"<br/>8. System creates Assignment record, sends notification to all students in the class |
-| **Alternative Flow** | **3a.** Lecturer doesn't use AI → Manually enters the entire assignment<br/>**4a.** AI returns unsuitable results → Lecturer clicks "Regenerate" with a different prompt<br/>**6a.** Test cases are invalid (Expected Output is empty) → System warns and requests correction |
+| **Main Flow** | 1. Lecturer selects class and clicks "Create New Assignment"<br/>2. Lecturer enters: Title, General Description, Programming Language, Deadline<br/>2a. (Optional) Lecturer clicks "Import from Existing Assignment": selects one of their previous assignments (from any class they teach) → system pre-fills Title, Description, and Test Cases from the selected assignment for editing<br/>3. (Optional) Lecturer clicks "Generate with AI": enters a topic description prompt<br/>4. AI Engine returns: Detailed assignment, sample Input/Output, Grading Rubric<br/>5. Lecturer reviews and edits AI-generated content<br/>6. Lecturer adds Test Cases (StdIn → Expected StdOut) manually or from AI<br/>7. Lecturer clicks "Save & Publish"<br/>8. System creates Assignment record, sends notification to all students in the class |
+| **Alternative Flow** | **2b.** Imported assignment belongs to a class with a different programming language → System warns lecturer that test cases may need adjustment before publishing<br/>**3a.** Lecturer doesn't use AI → Manually enters the entire assignment<br/>**4a.** AI returns unsuitable results → Lecturer clicks "Regenerate" with a different prompt<br/>**6a.** Test cases are invalid (Expected Output is empty) → System warns and requests correction |
 | **Postconditions** | Assignment is created and displayed in the class assignment list. |
 
 ---
@@ -512,17 +512,21 @@ erDiagram
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
         string student_code
         string major
+        int intake_year
     }
 
     LECTURERS {
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
         string department
         string title
+        string lecturer_code
     }
 
     ADMINS {
         UNIQUEIDENTIFIER user_id "PK, FK -> USERS(id)"
         string access_level
+        string staff_code
+        string managed_scope
     }
 
     CLASSES {
@@ -536,6 +540,8 @@ erDiagram
     CLASS_STUDENTS {
         UNIQUEIDENTIFIER class_id FK
         UNIQUEIDENTIFIER student_id FK
+        datetime enrolled_at
+        string status "ACTIVE, DROPPED"
     }
 
     ASSIGNMENTS {
@@ -636,16 +642,22 @@ erDiagram
 | **STUDENTS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
 | | `student_code` | VARCHAR(20) | UNIQUE | Student Roll Number (e.g., SE150000) |
 | | `major` | VARCHAR(50) | | Student's major (e.g., SE, AI, IA) |
+| | `intake_year` | INT | NULLABLE | Cohort/enrollment year (e.g., 2023). Populated via Excel import (UC-03) or Admin update; not collected at SSO signup |
 | **LECTURERS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
 | | `department` | VARCHAR(100) | | Department (e.g., Computing Fundamentals) |
 | | `title` | VARCHAR(50) | | Academic title (e.g., PhD, MSc) |
+| | `lecturer_code` | VARCHAR(20) | UNIQUE, NULLABLE | Internal staff ID for the lecturer, parallel to STUDENTS.student_code. Populated by Admin after account provisioning; not collected at SSO signup |
 | **ADMINS** | `user_id` | UNIQUEIDENTIFIER | PK, FK -> USERS(id) | 1-to-1 with USERS |
 | | `access_level` | VARCHAR(50) | | Admin role level (e.g., SuperAdmin, Moderator) |
+| | `staff_code` | VARCHAR(20) | UNIQUE, NULLABLE | Internal staff ID for the admin, parallel to STUDENTS.student_code / LECTURERS.lecturer_code. Populated by a Super Admin after account provisioning |
+| | `managed_scope` | VARCHAR(100) | NULLABLE | Scope of administrative permission (e.g., "Full System", "Sandbox Config Only") — refines access_level; maps to permissions listed in Actor Description 3.2 |
 | **CLASSES** | `id` | UNIQUEIDENTIFIER | PK | Primary key, class identifier |
 | | `class_code` | VARCHAR(50) | NOT NULL | Class code (e.g., SE1801) |
 | | `lecturer_id` | UNIQUEIDENTIFIER | FK -> LECTURERS(user_id) | Lecturer in charge of the class |
 | **CLASS_STUDENTS**| `class_id` | UNIQUEIDENTIFIER | FK -> CLASSES(id) | Foreign key to class |
 | | `student_id` | UNIQUEIDENTIFIER | FK -> STUDENTS(user_id) | Foreign key to student |
+| | `enrolled_at` | TIMESTAMP | DEFAULT NOW() | Timestamp when student joined the class |
+| | `status` | VARCHAR(20) | DEFAULT 'ACTIVE' | Enrollment status (ACTIVE, DROPPED) — used to exclude dropped students from grading dashboards |
 | **ASSIGNMENTS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, assignment identifier |
 | | `class_id` | UNIQUEIDENTIFIER | FK -> CLASSES(id) | Foreign key to class |
 | | `title` | VARCHAR(255) | NOT NULL | Assignment title |
@@ -709,6 +721,8 @@ This section describes the key screens of the AITA-Intelligent system, their lay
 | **Validation** | Only `@fpt.edu.vn` and `@fe.edu.vn` email domains accepted. Others shown error toast. |
 
 #### 6.7.2. Screen 2 — Student Dashboard
+
+![Student Dashboard Mockup](../02_Design_Artefacts/UI_Mockups/mockup_03_student_submission.jpg)
 
 | Attribute | Description |
 |---|---|
