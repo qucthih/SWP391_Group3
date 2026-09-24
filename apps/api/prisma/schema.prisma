@@ -42,6 +42,7 @@ model Student {
   userId      String   @id @map("user_id")
   studentCode String   @unique @map("student_code")
   major       String?
+  intakeYear  Int?     @map("intake_year")
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -57,11 +58,12 @@ model Student {
 // 3. BẢNG LECTURERS: Thông tin chi tiết giảng viên (1-1 với Users)
 // ==============================================================================
 model Lecturer {
-  userId     String   @id @map("user_id")
-  department String?
-  title      String?
+  userId        String   @id @map("user_id")
+  department    String?
+  title         String?
+  lecturerCode  String?  @unique @map("lecturer_code")
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Quan hệ:
   managedClasses Class[]
@@ -74,10 +76,12 @@ model Lecturer {
 // 4. BẢNG ADMINS: Thông tin chi tiết quản trị viên (1-1 với Users)
 // ==============================================================================
 model Admin {
-  userId      String  @id @map("user_id")
-  accessLevel String? @map("access_level")
+  userId        String  @id @map("user_id")
+  accessLevel   String? @map("access_level")
+  staffCode     String? @unique @map("staff_code")
+  managedScope  String? @map("managed_scope")
 
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("admins")
 }
