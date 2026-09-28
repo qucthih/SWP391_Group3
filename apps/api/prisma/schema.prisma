@@ -105,15 +105,18 @@ model Class {
 // 6. BẢNG CLASS_STUDENTS: Sinh viên thuộc lớp nào (Quan hệ N-N)
 // ==============================================================================
 model ClassStudent {
-  classId   String  @map("class_id")
-  studentId String  @map("student_id")
+  classId    String   @map("class_id")
+  studentId  String   @map("student_id")
+  enrolledAt DateTime @default(now()) @map("enrolled_at")
+  status     String   @default("ACTIVE") @map("status") // "ACTIVE" hoặc "DROPPED"
 
-  class     Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
-  student   Student @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
+  class      Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
 
   @@id([classId, studentId])
   @@map("class_students")
 }
+
 
 // ==============================================================================
 // 7. BẢNG ASSIGNMENTS: Đề bài / Bài tập lập trình
