@@ -11,4 +11,5 @@ export const env = {
     DATABASE_URL: required("DATABASE_URL"),
     JWT_SECRET: required("JWT_SECRET"),
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "placeholder_google_client_id",
+    INTERNAL_API_KEY: process.env.INTERNAL_API_KEY || "aita_internal_secret_key_2026",
 };

@@ -9,31 +9,49 @@ const EMAIL_REGEX = /^[^@\s]+@(fpt|fe)\.edu\.vn$/;
 
 export const loginWithGoogle = async (req: Request, res: Response) => {
     try {
-        const { credential } = req.body;
+        const { credential, email: mockEmail } = req.body;
 
-        if (!credential || typeof credential !== "string") {
-            return res.status(400).json({ success: false, message: "Thiếu Google credential." });
+        let email = "";
+        let fullName = "";
+
+        // =========================================================================
+        // 1. CHẾ ĐỘ DEV LOGIN NHANH (Chỉ cho phép khi KHÔNG PHẢI là Production)
+        // =========================================================================
+        if (credential === "mock_local_dev_token" && mockEmail) {
+            if (process.env.NODE_ENV === "production") {
+                return res.status(403).json({
+                    success: false,
+                    message: "Chế độ đăng nhập thử nghiệm bị vô hiệu hóa trên môi trường Production.",
+                });
+            }
+            email = mockEmail.trim().toLowerCase();
+            fullName = email.split("@")[0].toUpperCase();
+        } else {
+            // =====================================================================
+            // 2. XÁC THỰC GOOGLE ID TOKEN THẬT
+            // =====================================================================
+            if (!credential || typeof credential !== "string") {
+                return res.status(400).json({ success: false, message: "Thiếu Google credential." });
+            }
+
+            let payload;
+            try {
+                const ticket = await googleClient.verifyIdToken({
+                    idToken: credential,
+                    audience: env.GOOGLE_CLIENT_ID,
+                });
+                payload = ticket.getPayload();
+            } catch (err) {
+                return res.status(401).json({ success: false, message: "Google token không hợp lệ." });
+            }
+
+            if (!payload?.email || !payload.email_verified) {
+                return res.status(401).json({ success: false, message: "Email Google chưa được xác minh." });
+            }
+
+            email = payload.email.trim().toLowerCase();
+            fullName = payload.name || email.split("@")[0];
         }
-
-        // 1. Verify token với Google
-        let payload;
-        try {
-            const ticket = await googleClient.verifyIdToken({
-                idToken: credential,
-                audience: env.GOOGLE_CLIENT_ID,
-            });
-            payload = ticket.getPayload();
-        } catch (err) {
-            return res.status(401).json({ success: false, message: "Google token không hợp lệ." });
-        }
-
-        if (!payload?.email || !payload.email_verified) {
-            return res.status(401).json({ success: false, message: "Email Google chưa được xác minh." });
-        }
-
-        // 2. Lấy dữ liệu từ payload đã verify, chuẩn hóa email
-        const email = payload.email.trim().toLowerCase();
-        const fullName = payload.name || email.split("@")[0];
 
         // 3. Kiểm tra domain FPT theo SRS mục 6.7.1
         if (!EMAIL_REGEX.test(email)) {

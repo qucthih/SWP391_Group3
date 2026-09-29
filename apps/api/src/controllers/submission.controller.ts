@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "../prisma.js";
 import { emitGradingProgress } from "../socket/index.js";
+import { env } from "../config/env.js";
 
 // Giới hạn số lần nộp tối đa theo Risk R01 (mặc định 5 lần)
 const MAX_SUBMISSION_ATTEMPTS = 5;
@@ -46,32 +47,30 @@ export const submitAssignment = async (req: Request, res: Response) => {
                 message: `Bạn đã đạt giới hạn tối đa ${MAX_SUBMISSION_ATTEMPTS} lần nộp cho bài tập này (Risk R01).`,
             });
         }
-
-        // 3. Tính mã băm SHA-256 từ file buffer
+        // 3. Tính SHA-256 từ file trên đĩa
+        const fileBuffer = fs.readFileSync(file.path);
         const hashSum = crypto.createHash("sha256");
-        hashSum.update(file.buffer);
+        hashSum.update(fileBuffer);
         const fileHash = hashSum.digest("hex");
 
-        // 4. Lưu file vật lý vào thư mục uploads/submissions
-        const uploadDir = path.join(process.cwd(), "uploads", "submissions");
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+        // 4. Kiểm tra Magic bytes của file ZIP (50 4B 03 04)
+        if (fileBuffer.length < 4 || fileBuffer[0] !== 0x50 || fileBuffer[1] !== 0x4b || fileBuffer[2] !== 0x03 || fileBuffer[3] !== 0x04) {
+            fs.unlinkSync(file.path); // Xóa file rác
+            return res.status(400).json({ success: false, message: "File tải lên không phải là file ZIP hợp lệ (Sai magic bytes)." });
         }
 
-        const fileName = `${Date.now()}_${studentId}_${file.originalname}`;
-        const filePath = path.join(uploadDir, fileName);
-        fs.writeFileSync(filePath, file.buffer);
-
-        // 5. Tạo bản ghi Submission với trạng thái PENDING
+        // 5. Tạo submission với đường dẫn file đã lưu
         const submission = await prisma.submission.create({
             data: {
                 assignmentId,
                 studentId,
-                fileUrl: `/uploads/submissions/${fileName}`,
+                fileUrl: `/uploads/submissions/${file.filename}`,
                 fileHash,
                 status: "PENDING",
             },
         });
+
+
 
         // Phát thông báo tiến trình khởi tạo qua WebSocket
         emitGradingProgress({
@@ -255,8 +254,21 @@ export const resolveAppeal = async (req: Request, res: Response) => {
 // Lấy danh sách các đơn khiếu nại chờ duyệt (Lecturer)
 export const getPendingAppeals = async (req: Request, res: Response) => {
     try {
+        const user = req.user!;
+
         const appeals = await prisma.appeal.findMany({
-            where: { status: "PENDING" },
+            where: {
+                status: "PENDING",
+                ...(user.role === "LECTURER" && {
+                    submission: {
+                        assignment: {
+                            class: {
+                                lecturerId: user.userId,
+                            },
+                        },
+                    },
+                }),
+            },
             include: {
                 submission: {
                     include: {
@@ -272,28 +284,52 @@ export const getPendingAppeals = async (req: Request, res: Response) => {
 
         return res.json({ success: true, data: appeals });
     } catch (error) {
+        console.error("Lỗi getPendingAppeals:", error);
         return res.status(500).json({ success: false, message: "Lỗi máy chủ khi lấy danh sách khiếu nại." });
     }
 };
 
+
 // API Endpoint cho Phân hệ 2 (Sandbox), 4 (AST), 5 (Queue) cập nhật kết quả chấm
 export const updateSubmissionGradingResult = async (req: Request, res: Response) => {
     try {
+        const internalKey = req.headers["x-internal-key"];
+        if (internalKey !== env.INTERNAL_API_KEY) {
+            return res.status(403).json({ success: false, message: "Từ chối truy cập: Sai hoặc thiếu Internal API Key." });
+        }
+
         const { submissionId } = req.params;
-        const {
-            status, // "GRADED", "COMPILATION_ERROR", "TIMEOUT", "SECURITY_VIOLATION"
-            totalScore,
-            aiFeedback,
-            step,
-            progressPercent,
-            message,
-        } = req.body;
+        const { status, totalScore, aiFeedback, step, progressPercent, message } = req.body;
+
+        // 1. Validate trạng thái hợp lệ
+        const ALLOWED_STATUS = ["PENDING", "QUEUED", "RUNNING_TESTS", "GRADED", "COMPILATION_ERROR", "TIMEOUT", "SECURITY_VIOLATION"];
+        if (status && !ALLOWED_STATUS.includes(status)) {
+            return res.status(400).json({ success: false, message: "Trạng thái chấm điểm không hợp lệ." });
+        }
+
+        // 2. Validate điểm số (Thống nhất chuẩn thang điểm 10)
+        if (totalScore !== undefined && totalScore !== null) {
+            const scoreNum = Number(totalScore);
+            if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 10) {
+                return res.status(400).json({ success: false, message: "Điểm số không hợp lệ (Phải từ 0 đến 10)." });
+            }
+        }
+
+        // 3. Kiểm tra bài nộp tồn tại
+        const currentSubmission = await prisma.submission.findUnique({
+            where: { id: submissionId },
+            select: { id: true, status: true },
+        });
+
+        if (!currentSubmission) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy bài nộp." });
+        }
 
         const updated = await prisma.submission.update({
             where: { id: submissionId },
             data: {
                 ...(status && { status }),
-                ...(totalScore !== undefined && { totalScore: Number(totalScore) }),
+                ...(totalScore !== undefined && totalScore !== null && { totalScore: Number(totalScore) }),
                 ...(aiFeedback && { aiFeedback }),
             },
         });
@@ -310,6 +346,7 @@ export const updateSubmissionGradingResult = async (req: Request, res: Response)
 
         return res.json({ success: true, message: "Đã cập nhật kết quả chấm!", data: updated });
     } catch (error) {
+        console.error("Lỗi updateSubmissionGradingResult:", error);
         return res.status(500).json({ success: false, message: "Lỗi khi cập nhật kết quả bài nộp." });
     }
 };

@@ -197,33 +197,57 @@ export const importStudentsFromExcel = async (req: Request, res: Response) => {
 };
 
 // Cập nhật thông tin lớp (Sửa mã lớp, đổi giảng viên)
+// Sửa thông tin lớp (Chỉ giảng viên phụ trách lớp đó hoặc ADMIN)
 export const updateClass = async (req: Request, res: Response) => {
     try {
         const { classId } = req.params;
         const { classCode, lecturerId } = req.body;
+        const user = req.user!;
+
+        // Tìm lớp và kiểm tra quyền sở hữu
+        const existingClass = await prisma.class.findUnique({ where: { id: classId } });
+        if (!existingClass) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy lớp học." });
+        }
+
+        if (user.role === "LECTURER" && existingClass.lecturerId !== user.userId) {
+            return res.status(403).json({ success: false, message: "Bạn không có quyền sửa lớp của giảng viên khác." });
+        }
+
+        // Chỉ Admin mới được phép gán lớp sang giảng viên khác
+        if (lecturerId && user.role !== "ADMIN") {
+            return res.status(403).json({ success: false, message: "Chỉ Admin mới có quyền thay đổi Giảng viên phụ trách lớp." });
+        }
 
         const updated = await prisma.class.update({
             where: { id: classId },
             data: {
                 ...(classCode && { classCode: classCode.trim().toUpperCase() }),
-                ...(lecturerId && { lecturerId }),
+                ...(lecturerId && user.role === "ADMIN" && { lecturerId }),
             },
         });
 
         return res.json({ success: true, message: "Cập nhật lớp thành công!", data: updated });
     } catch (error) {
+        console.error("Lỗi updateClass:", error);
         return res.status(500).json({ success: false, message: "Lỗi máy chủ khi cập nhật lớp." });
     }
 };
 
-// Xóa lớp học
+// Xóa lớp học (Chỉ ADMIN)
 export const deleteClass = async (req: Request, res: Response) => {
     try {
         const { classId } = req.params;
+        const user = req.user!;
+
+        if (user.role !== "ADMIN") {
+            return res.status(403).json({ success: false, message: "Chỉ Admin mới có quyền xóa lớp học." });
+        }
+
         await prisma.class.delete({ where: { id: classId } });
         return res.json({ success: true, message: "Đã xóa lớp học thành công!" });
     } catch (error) {
+        console.error("Lỗi deleteClass:", error);
         return res.status(500).json({ success: false, message: "Lỗi máy chủ khi xóa lớp." });
     }
 };
-

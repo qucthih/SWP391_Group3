@@ -30,13 +30,13 @@
 | **Verify Schema Prisma MSSQL** | Đồng bộ toàn bộ 10+ bảng vào Microsoft SQL Server 2019+ trên cổng `1433` | `apps/api/prisma/schema.prisma` | ✅ Đạt 100% |
 | **Model Student/Lecturer/Admin** | Thêm trường thật: `student_code`, `major`, `intake_year`; `department`, `title`, `lecturer_code`; `access_level`, `staff_code`, `managed_scope` | `apps/api/prisma/schema.prisma` | ✅ Đạt 100% |
 | **Model ClassStudent** | Thêm `enrolled_at` (DateTime), `status` (`ACTIVE`/`DROPPED`) phục vụ lọc US09 | `apps/api/prisma/schema.prisma` | ✅ Đạt 100% |
-| **`POST /api/submissions` (US12)** | Nhận `.zip`, kiểm tra kích thước ≤ 10MB, băm SHA-256, tạo trạng thái `PENDING`, trả `202 Accepted` | `apps/api/src/controllers/submission.controller.ts`<br>`apps/api/src/routes/submission.routes.ts` | ✅ Đạt 100% |
+| **`POST /api/submissions` (US12)** | Nhận `.zip`, kiểm tra kích thước ≤ 10MB, kiểm tra magic bytes `50 4B 03 04`, băm SHA-256, lưu diskStorage, tạo trạng thái `PENDING`, trả `202 Accepted` | `apps/api/src/controllers/submission.controller.ts`<br>`apps/api/src/routes/submission.routes.ts` | ✅ Đạt 100% |
 | **Risk R01** | Chặn nộp bài khi đã đạt giới hạn ≥ 5 lần/bài/sinh viên (dạng config hằng số) | `apps/api/src/controllers/submission.controller.ts` | ✅ Đạt 100% |
-| **Quản lý Class CRUD** | Tạo lớp, sửa mã lớp/giảng viên, xóa lớp, danh sách lớp cá nhân | `apps/api/src/controllers/class.controller.ts`<br>`apps/api/src/routes/class.routes.ts` | ✅ Đạt 100% |
+| **Quản lý Class CRUD** | Tạo lớp, sửa mã lớp/giảng viên (chống IDOR), xóa lớp (chỉ Admin), danh sách lớp cá nhân | `apps/api/src/controllers/class.controller.ts`<br>`apps/api/src/routes/class.routes.ts` | ✅ Đạt 100% |
 | **Import Excel Sinh viên (US06, NFR-12)** | Parse file `.xlsx`, xác thực dòng, dùng **Database Transaction** (`$transaction`) toàn bộ thành công hoặc Rollback | `apps/api/src/controllers/class.controller.ts` | ✅ Đạt 100% |
 | **API Assignment + Test Case (US07)** | Tạo đề bài (Java, Python, C#), nhiều test case kèm `score_weight`, tiêu chí chấm | `apps/api/src/controllers/assignment.controller.ts` | ✅ Đạt 100% |
 | **Clone Đề bài cũ (UC-02)** | Nhân bản đề bài và toàn bộ test cases từ `sourceAssignmentId` sang lớp mới | `apps/api/src/controllers/assignment.controller.ts` | ✅ Đạt 100% |
-| **Thống nhất Format API liên phân hệ** | Endpoint `PATCH /api/submissions/:id/result` để Phân hệ 2/4/5 gọi cập nhật kết quả | `apps/api/src/controllers/submission.controller.ts` | ✅ Đạt 100% |
+| **Thống nhất Format API liên phân hệ** | Endpoint `PATCH /api/submissions/:id/result` có bảo vệ bằng `x-internal-key`, validate dải điểm thang 10 | `apps/api/src/controllers/submission.controller.ts` | ✅ Đạt 100% |
 
 ---
 
@@ -63,3 +63,4 @@ PORT=5000
 DATABASE_URL="sqlserver://localhost:1433;database=aita_db;user=sa;password=12345;trustServerCertificate=true"
 JWT_SECRET="aita_jwt_super_secret_key_change_in_production_2026"
 GOOGLE_CLIENT_ID="your_google_client_id.apps.googleusercontent.com"
+INTERNAL_API_KEY="aita_internal_secret_key_2026"

@@ -1,5 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
+import fs from "fs";
+import path from "path";
 import {
     submitAssignment,
     getMySubmissions,
@@ -8,16 +10,39 @@ import {
     resolveAppeal,
     getPendingAppeals,
     updateSubmissionGradingResult,
-} from "../controllers/submission.controller.js"; import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
+} from "../controllers/submission.controller.js";
+import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-// Cấu hình Multer: Chỉ nhận file .zip và dung lượng tối đa 10MB (theo SRS)
+// =========================================================================
+// CẤU HÌNH DISK STORAGE (Lưu trực tiếp vào đĩa, chống tràn RAM khi 100 requests)
+// =========================================================================
+const uploadDir = path.join(process.cwd(), "uploads", "submissions");
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        // Tên file an toàn ngẫu nhiên: sub_<timestamp>_<randomHex>.zip
+        const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        cb(null, `sub_${uniqueSuffix}.zip`);
+    },
+});
+
 const upload = multer({
-    storage: multer.memoryStorage(),
+    storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
-        if (file.mimetype === "application/zip" || file.mimetype === "application/x-zip-compressed" || file.originalname.endsWith(".zip")) {
+        if (
+            file.mimetype === "application/zip" ||
+            file.mimetype === "application/x-zip-compressed" ||
+            file.originalname.toLowerCase().endsWith(".zip")
+        ) {
             cb(null, true);
         } else {
             cb(new Error("Hệ thống chỉ chấp nhận file nén định dạng .zip"));
