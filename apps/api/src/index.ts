@@ -1,8 +1,16 @@
+import "dotenv/config";
 import http from "http";
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { initSocketServer, emitGradingProgress } from "./socket/index.js";
+import authRoutes from "./routes/auth.routes.js";
+import classRoutes from "./routes/class.routes.js";
+import assignmentRoutes from "./routes/assignment.routes.js";
+import submissionRoutes from "./routes/submission.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
+
+
 
 // Nạp biến môi trường từ file .env
 dotenv.config();
@@ -13,6 +21,11 @@ const PORT = process.env.PORT || 5000;
 // Cấu hình Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/api/auth", authRoutes);
+app.use("/api/classes", classRoutes);
+app.use("/api/assignments", assignmentRoutes);
+app.use("/api/submissions", submissionRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Endpoint kiểm tra sức khỏe hệ thống (Health Check)
 app.get("/health", (req: Request, res: Response) => {
