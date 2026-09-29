@@ -251,3 +251,65 @@ export const resolveAppeal = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false, message: "Lỗi máy chủ khi xử lý khiếu nại." });
     }
 };
+
+// Lấy danh sách các đơn khiếu nại chờ duyệt (Lecturer)
+export const getPendingAppeals = async (req: Request, res: Response) => {
+    try {
+        const appeals = await prisma.appeal.findMany({
+            where: { status: "PENDING" },
+            include: {
+                submission: {
+                    include: {
+                        assignment: { select: { title: true } },
+                    },
+                },
+                student: {
+                    include: { user: { select: { fullName: true, email: true } } },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        return res.json({ success: true, data: appeals });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Lỗi máy chủ khi lấy danh sách khiếu nại." });
+    }
+};
+
+// API Endpoint cho Phân hệ 2 (Sandbox), 4 (AST), 5 (Queue) cập nhật kết quả chấm
+export const updateSubmissionGradingResult = async (req: Request, res: Response) => {
+    try {
+        const { submissionId } = req.params;
+        const {
+            status, // "GRADED", "COMPILATION_ERROR", "TIMEOUT", "SECURITY_VIOLATION"
+            totalScore,
+            aiFeedback,
+            step,
+            progressPercent,
+            message,
+        } = req.body;
+
+        const updated = await prisma.submission.update({
+            where: { id: submissionId },
+            data: {
+                ...(status && { status }),
+                ...(totalScore !== undefined && { totalScore: Number(totalScore) }),
+                ...(aiFeedback && { aiFeedback }),
+            },
+        });
+
+        // Phát WebSocket real-time cho sinh viên đang xem Stepper
+        if (step) {
+            emitGradingProgress({
+                submissionId,
+                step,
+                progressPercent: progressPercent || 100,
+                message: message || "Đang xử lý kết quả...",
+            });
+        }
+
+        return res.json({ success: true, message: "Đã cập nhật kết quả chấm!", data: updated });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Lỗi khi cập nhật kết quả bài nộp." });
+    }
+};

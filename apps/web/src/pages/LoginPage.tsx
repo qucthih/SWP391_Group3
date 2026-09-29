@@ -1,22 +1,52 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, ShieldAlert } from 'lucide-react';
+import { LogIn, ShieldAlert, GraduationCap, School } from 'lucide-react';
+import { apiRequest } from '../services/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleGoogleLogin = (role: 'STUDENT' | 'LECTURER') => {
-    if (email && !email.endsWith('@fpt.edu.vn') && !email.endsWith('@fe.edu.vn')) {
+  // Xử lý đăng nhập gửi về Backend
+  const handleLogin = async (inputEmail: string) => {
+    const targetEmail = inputEmail.trim().toLowerCase();
+
+    // 1. Kiểm tra Domain FPT (SRS 6.7.1)
+    if (!targetEmail.endsWith('@fpt.edu.vn') && !targetEmail.endsWith('@fe.edu.vn')) {
       setError('Hệ thống chỉ chấp nhận tài khoản email @fpt.edu.vn hoặc @fe.edu.vn');
       return;
     }
 
-    if (role === 'LECTURER') {
-      navigate('/lecturer/dashboard');
+    setLoading(true);
+    setError('');
+
+    // Gọi API login backend
+    // Lưu ý: Trong chế độ dev local, ta gửi credential hoặc email để backend cấp token
+    const res = await apiRequest('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({
+        credential: 'mock_local_dev_token', // Dành cho dev
+        email: targetEmail,
+      }),
+    });
+
+    setLoading(false);
+
+    if (res.success && res.data) {
+      // Lưu Token và User Profile
+      localStorage.setItem('aita_token', res.data.token);
+      localStorage.setItem('aita_user', JSON.stringify(res.data.user));
+
+      // Phân quyền điều hướng theo Role
+      if (res.data.user.role === 'LECTURER' || res.data.user.role === 'ADMIN') {
+        navigate('/lecturer/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } else {
-      navigate('/dashboard');
+      setError(res.message || 'Đăng nhập không thành công.');
     }
   };
 
@@ -33,7 +63,7 @@ export default function LoginPage() {
           Nền tảng Trợ lý Giảng dạy & Phân tích Cú pháp AST
         </p>
 
-        {/* Input Email */}
+        {/* Input Email FPT */}
         <div className="mb-4 text-left">
           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
             Email FPT Education
@@ -60,42 +90,27 @@ export default function LoginPage() {
         {/* Nút bấm Đăng nhập */}
         <div className="space-y-3">
           <button
-            onClick={() => handleGoogleLogin('STUDENT')}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-800 font-semibold py-3 px-4 rounded-xl transition duration-200 border border-slate-300 shadow-sm"
+            onClick={() => handleLogin(email || 'student@fpt.edu.vn')}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-800 font-semibold py-3 px-4 rounded-xl transition duration-200 border border-slate-300 shadow-sm disabled:opacity-50"
           >
-            <svg className="w-5 h-5 shrink-0" width="20" height="20" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Đăng nhập với Google (Sinh viên)</span>
+            <GraduationCap size={18} className="text-indigo-600" />
+            <span>{loading ? 'Đang xác thực...' : 'Đăng nhập với vai trò Sinh viên'}</span>
           </button>
 
           <button
-            onClick={() => handleGoogleLogin('LECTURER')}
-            className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl text-xs transition duration-200 border border-slate-200"
+            onClick={() => handleLogin('lecturer@fe.edu.vn')}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl text-xs transition duration-200 border border-slate-200 disabled:opacity-50"
           >
-            <LogIn size={14} />
-            <span>Chuyển sang Chế độ Giảng viên (Demo)</span>
+            <School size={16} className="text-amber-600" />
+            <span>Đăng nhập với vai trò Giảng viên (@fe.edu.vn)</span>
           </button>
         </div>
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-slate-200 text-xs text-slate-400">
-          SWP391 - Group 3 • Phiên bản 1.2 (RBL Track)
+          SWP391 - Group 3 • Milestone 3 (Full Pipeline Integration)
         </div>
       </div>
     </div>

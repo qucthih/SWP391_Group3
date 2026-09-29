@@ -1,7 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
-import { createClass, getMyClasses, importStudentsFromExcel } from "../controllers/class.controller.js";
+import { createClass, getMyClasses, importStudentsFromExcel, updateClass, deleteClass } from "../controllers/class.controller.js";
 import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
+
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -14,5 +15,10 @@ router.post("/", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), createClas
 
 // Import sinh viên vào lớp bằng file Excel (chỉ LECTURER hoặc ADMIN)
 router.post("/:classId/import-students", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), upload.single("file") as any, importStudentsFromExcel);
+
+// Sửa lớp (Lecturer/Admin)
+router.put("/:classId", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), updateClass);
+// Xóa lớp (Admin)
+router.delete("/:classId", authenticateJWT, authorizeRole("ADMIN"), deleteClass);
 
 export default router;

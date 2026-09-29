@@ -6,8 +6,9 @@ import {
     getSubmissionResult,
     createAppeal,
     resolveAppeal,
-} from "../controllers/submission.controller.js";
-import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
+    getPendingAppeals,
+    updateSubmissionGradingResult,
+} from "../controllers/submission.controller.js"; import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -38,5 +39,11 @@ router.post("/appeal", authenticateJWT, authorizeRole("STUDENT"), createAppeal);
 
 // Giảng viên xử lý khiếu nại & ghi Audit log (US10, Risk R03)
 router.patch("/appeal/:appealId/resolve", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), resolveAppeal);
+
+// Giảng viên xem danh sách khiếu nại chờ duyệt (US10)
+router.get("/appeals/pending", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), getPendingAppeals);
+
+// Endpoint nhận cập nhật tiến trình và điểm từ Sandbox/AST/Queue (Thống nhất với Phân hệ 2/4/5)
+router.patch("/:submissionId/result", updateSubmissionGradingResult);
 
 export default router;

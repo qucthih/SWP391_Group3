@@ -195,3 +195,35 @@ export const importStudentsFromExcel = async (req: Request, res: Response) => {
         });
     }
 };
+
+// Cập nhật thông tin lớp (Sửa mã lớp, đổi giảng viên)
+export const updateClass = async (req: Request, res: Response) => {
+    try {
+        const { classId } = req.params;
+        const { classCode, lecturerId } = req.body;
+
+        const updated = await prisma.class.update({
+            where: { id: classId },
+            data: {
+                ...(classCode && { classCode: classCode.trim().toUpperCase() }),
+                ...(lecturerId && { lecturerId }),
+            },
+        });
+
+        return res.json({ success: true, message: "Cập nhật lớp thành công!", data: updated });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Lỗi máy chủ khi cập nhật lớp." });
+    }
+};
+
+// Xóa lớp học
+export const deleteClass = async (req: Request, res: Response) => {
+    try {
+        const { classId } = req.params;
+        await prisma.class.delete({ where: { id: classId } });
+        return res.json({ success: true, message: "Đã xóa lớp học thành công!" });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: "Lỗi máy chủ khi xóa lớp." });
+    }
+};
+
