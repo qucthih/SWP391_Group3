@@ -1,0 +1,272 @@
+// ==============================================================================
+// PROMPT TEMPLATES — Tất cả system prompts cho phân hệ GenAI
+// Owner: Huy (Phân hệ 3)
+// Tham chiếu SRS: US-08, US-15, NFR-17
+//
+// Quy tắc:
+// - Mỗi prompt là 1 hàm nhận tham số → trả về { systemPrompt, userPrompt }.
+// - Temperature được gợi ý trong từng hàm (scoring = thấp, generation = cao hơn).
+// - Output format luôn yêu cầu JSON để dễ parse chương trình.
+// ==============================================================================
+
+import { AIRequest } from "../types.js";
+
+// ==============================================================================
+// US-08: Sinh đề bài Assignment (MVP)
+// Lecturer nhập mô tả ngắn → AI trả về: title, description, test cases
+// ==============================================================================
+
+const ASSIGNMENT_GENERATION_SYSTEM = `You are an expert university-level programming instructor.
+Your task is to generate a complete programming assignment based on the given topic.
+
+RULES:
+- The assignment must be clear, specific, and suitable for university students.
+- Generate 3 to 5 test cases in StdIn/StdOut format.
+- Score weights across all test cases must sum to exactly 100.
+- Test cases should cover: basic case, edge case, and performance case.
+- Write the description in English.
+
+OUTPUT FORMAT (strict JSON, no markdown):
+{
+  "title": "string",
+  "description": "string (2-3 paragraphs with requirements)",
+  "testCases": [
+    {
+      "input": "string (stdin input)",
+      "expectedOutput": "string (expected stdout)",
+      "scoreWeight": number,
+      "label": "string (e.g., 'Basic case', 'Edge case')"
+    }
+  ]
+}`;
+
+export function buildAssignmentGenerationPrompt(
+  topic: string,
+  language: string,
+  difficulty: "easy" | "medium" | "hard" = "medium"
+): Pick<AIRequest, "systemPrompt" | "userPrompt" | "temperature" | "maxTokens"> {
+  return {
+    systemPrompt: ASSIGNMENT_GENERATION_SYSTEM,
+    userPrompt: `Generate a ${difficulty}-level programming assignment about: "${topic}"
+Programming language: ${language}
+Please provide the complete assignment with test cases.`,
+    temperature: 0.6,  // Cao hơn vì cần sáng tạo
+    maxTokens: 2048,
+  };
+}
+
+// ==============================================================================
+// US-15: Chấm Clean Code (Chain-of-Thought + Few-Shot Learning)
+// Nhận source code → AI phân tích từng bước → trả về điểm + nhận xét
+// ==============================================================================
+
+const CLEAN_CODE_REVIEW_SYSTEM = `You are a senior code reviewer evaluating source code quality.
+
+EVALUATION METHOD (Chain-of-Thought — analyze step by step):
+Step 1: NAMING — Check variable, function, class naming conventions.
+Step 2: SOLID — Check Single Responsibility, Open/Closed, and other SOLID principles.
+Step 3: ERROR HANDLING — Check try-catch usage, null checks, input validation.
+Step 4: ARCHITECTURE — Check code organization, separation of concerns, modularity.
+Step 5: FINAL SCORE — Assign an overall Clean Code score from 0 to 100.
+
+SCORING GUIDE:
+- 90-100: Excellent — Clean, well-structured, follows all best practices
+- 70-89: Good — Minor issues, generally clean code
+- 50-69: Fair — Several issues, needs improvement
+- 30-49: Poor — Major issues, hard to maintain
+- 0-29: Very poor — No structure, very messy
+
+FEW-SHOT EXAMPLES:
+
+Example 1 (Good code, score ~85):
+\`\`\`java
+public class StudentService {
+    private final StudentRepository repository;
+    public StudentService(StudentRepository repository) {
+        this.repository = Objects.requireNonNull(repository);
+    }
+    public Student findById(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Student ID must not be blank");
+        }
+        return repository.findById(id)
+            .orElseThrow(() -> new StudentNotFoundException(id));
+    }
+}
+\`\`\`
+Score: 85. Comments: ["✅ Good dependency injection via constructor", "✅ Input validation with clear error message", "✅ Proper use of Optional", "💡 Consider adding logging for debugging"]
+
+Example 2 (Poor code, score ~30):
+\`\`\`java
+public class Main {
+    static ArrayList data = new ArrayList();
+    public static void main(String[] a) {
+        try { for(int i=0;i<100;i++) { data.add(process(i)); } } catch(Exception e) {}
+    }
+    static Object process(int x) { return x * 2; }
+}
+\`\`\`
+Score: 30. Comments: ["❌ Raw ArrayList without generics", "❌ Empty catch block swallows all errors", "❌ Meaningless variable names (a, x, data)", "⚠️ God class — all logic in Main"]
+
+RESPONSE RULES:
+- Write all comments in Vietnamese.
+- Be constructive — suggest improvements, not just criticize.
+
+OUTPUT FORMAT (strict JSON, no markdown):
+{
+  "score": number,
+  "categories": {
+    "naming": number,
+    "solid": number,
+    "errorHandling": number,
+    "architecture": number
+  },
+  "comments": ["string (Vietnamese)"],
+  "summary": "string (1-2 sentence Vietnamese summary)"
+}`;
+
+export function buildCleanCodeReviewPrompt(
+  sourceCode: string,
+  language: string
+): Pick<AIRequest, "systemPrompt" | "userPrompt" | "temperature" | "maxTokens"> {
+  // Cắt source code nếu quá dài để tránh vượt context window
+  const truncatedCode = sourceCode.length > 8000
+    ? sourceCode.substring(0, 8000) + "\n// ... [code truncated for review]"
+    : sourceCode;
+
+  return {
+    systemPrompt: CLEAN_CODE_REVIEW_SYSTEM,
+    userPrompt: `Review the following ${language} source code for Clean Code quality:
+
+\`\`\`${language.toLowerCase()}
+${truncatedCode}
+\`\`\`
+
+Analyze step by step (Chain-of-Thought), then provide scores and comments in Vietnamese.`,
+    temperature: 0.15,  // Thấp để điểm ổn định giữa các lần gọi
+    maxTokens: 2048,
+  };
+}
+
+// ==============================================================================
+// NFR-17: Giải thích lỗi biên dịch bằng tiếng Việt
+// Nhận compiler stderr → AI giải thích dễ hiểu cho sinh viên
+// ==============================================================================
+
+const ERROR_EXPLANATION_SYSTEM = `Bạn là một trợ giảng lập trình tại trường đại học FPT.
+Nhiệm vụ của bạn là giải thích lỗi biên dịch (compilation error) cho sinh viên năm nhất
+bằng tiếng Việt, dễ hiểu và thân thiện.
+
+QUY TẮC:
+- Giải thích lỗi bằng ngôn ngữ đời thường, tránh thuật ngữ phức tạp.
+- Chỉ ra chính xác dòng code bị lỗi nếu có thể.
+- Đưa ra gợi ý cách sửa cụ thể (kèm code mẫu nếu cần).
+- Nếu lỗi phổ biến, giải thích thêm nguyên nhân hay gặp.
+
+ĐỊNH DẠNG OUTPUT (JSON, không dùng markdown):
+{
+  "errorType": "string (tên lỗi ngắn gọn, vd: 'Lỗi biến chưa khai báo')",
+  "explanation": "string (giải thích chi tiết bằng tiếng Việt)",
+  "suggestion": "string (gợi ý cách sửa kèm code mẫu nếu có)",
+  "relatedConcept": "string (khái niệm liên quan để sinh viên tự học thêm)"
+}`;
+
+export function buildErrorExplanationPrompt(
+  stderr: string,
+  sourceCode: string,
+  language: string
+): Pick<AIRequest, "systemPrompt" | "userPrompt" | "temperature" | "maxTokens"> {
+  // Cắt stderr và source nếu quá dài
+  const truncatedStderr = stderr.length > 2000
+    ? stderr.substring(0, 2000) + "\n... [stderr truncated]"
+    : stderr;
+  const truncatedSource = sourceCode.length > 4000
+    ? sourceCode.substring(0, 4000) + "\n// ... [code truncated]"
+    : sourceCode;
+
+  return {
+    systemPrompt: ERROR_EXPLANATION_SYSTEM,
+    userPrompt: `Ngôn ngữ lập trình: ${language}
+
+Lỗi biên dịch từ compiler:
+\`\`\`
+${truncatedStderr}
+\`\`\`
+
+Mã nguồn của sinh viên:
+\`\`\`${language.toLowerCase()}
+${truncatedSource}
+\`\`\`
+
+Hãy giải thích lỗi này bằng tiếng Việt cho sinh viên năm nhất hiểu.`,
+    temperature: 0.2,
+    maxTokens: 1024,
+  };
+}
+
+// ==============================================================================
+// Benchmark Prompts — Dùng cho script đo hiệu năng providers
+// ==============================================================================
+
+export const BENCHMARK_PROMPTS = [
+  // 3 prompts sinh đề bài (US-08)
+  { label: "gen-basic-loop", ...buildAssignmentGenerationPrompt("Basic for/while loop exercises", "Java", "easy") },
+  { label: "gen-linked-list", ...buildAssignmentGenerationPrompt("Singly linked list implementation", "Java", "medium") },
+  { label: "gen-sorting", ...buildAssignmentGenerationPrompt("Comparison of sorting algorithms (bubble, merge, quick)", "Java", "hard") },
+
+  // 4 prompts chấm Clean Code (US-15)
+  {
+    label: "review-clean",
+    ...buildCleanCodeReviewPrompt(
+      `public class Calculator {\n  private final List<Double> history = new ArrayList<>();\n\n  public double add(double a, double b) {\n    double result = a + b;\n    history.add(result);\n    return result;\n  }\n\n  public List<Double> getHistory() {\n    return Collections.unmodifiableList(history);\n  }\n}`,
+      "Java"
+    ),
+  },
+  {
+    label: "review-messy",
+    ...buildCleanCodeReviewPrompt(
+      `public class Main {\n  static int x;\n  public static void main(String[] a) {\n    try { x = Integer.parseInt(a[0]); } catch(Exception e) {}\n    System.out.println(x*2);\n  }\n}`,
+      "Java"
+    ),
+  },
+  {
+    label: "review-medium",
+    ...buildCleanCodeReviewPrompt(
+      `public class StudentManager {\n  ArrayList<String> students = new ArrayList();\n  public void add(String name) {\n    if(name != null) students.add(name);\n  }\n  public String find(String name) {\n    for(String s : students) { if(s.equals(name)) return s; }\n    return null;\n  }\n}`,
+      "Java"
+    ),
+  },
+  {
+    label: "review-python",
+    ...buildCleanCodeReviewPrompt(
+      `def calc(lst):\n  r = []\n  for i in lst:\n    if i > 0:\n      r.append(i * 2)\n  return r\n\nprint(calc([1, -2, 3, -4, 5]))`,
+      "Python"
+    ),
+  },
+
+  // 3 prompts giải thích lỗi (NFR-17)
+  {
+    label: "error-null-pointer",
+    ...buildErrorExplanationPrompt(
+      "Exception in thread \"main\" java.lang.NullPointerException\n\tat Main.process(Main.java:15)\n\tat Main.main(Main.java:8)",
+      `public class Main {\n  static String[] data;\n  public static void main(String[] args) {\n    process();\n  }\n  static void process() {\n    System.out.println(data.length);\n  }\n}`,
+      "Java"
+    ),
+  },
+  {
+    label: "error-syntax",
+    ...buildErrorExplanationPrompt(
+      "Main.java:5: error: ';' expected\n    int x = 10\n              ^\n1 error",
+      `public class Main {\n  public static void main(String[] args) {\n    int x = 10\n    System.out.println(x);\n  }\n}`,
+      "Java"
+    ),
+  },
+  {
+    label: "error-type-mismatch",
+    ...buildErrorExplanationPrompt(
+      "Main.java:4: error: incompatible types: String cannot be converted to int\n    int count = \"hello\";\n                ^",
+      `public class Main {\n  public static void main(String[] args) {\n    int count = "hello";\n    System.out.println(count);\n  }\n}`,
+      "Java"
+    ),
+  },
+];

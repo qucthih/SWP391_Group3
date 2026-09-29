@@ -1,0 +1,6 @@
+{
+  "name": "@aita/sandbox-engine",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Docker Sandbox Engine placeholder (Owner: Thien)"
+}
