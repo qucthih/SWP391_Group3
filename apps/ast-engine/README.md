@@ -1,42 +1,16 @@
-# AITA AST Engine Microservice (FastAPI + Python)
+# AST Engine — Phân hệ 4
 
-Dịch vụ phân tích cây cú pháp trừu tượng (AST) và băm vân tay số (Winnowing Fingerprints) phục vụ đề tài SWP391 - Nhóm 3.
+Phát hiện đạo văn mã nguồn Java bằng **ANTLR4 → chuẩn hóa cây → Winnowing → so khớp** (Python 3.11 + FastAPI).
 
----
+| Bước | Thư mục | Trạng thái |
+|---|---|---|
+| 1. Parse Java (ANTLR4) | `src/ast_engine/parsing` | ✅ xong |
+| 2. Chuẩn hóa cây + dự phòng lexer | `src/ast_engine/normalization` | ⏳ |
+| 3. Winnowing | `src/ast_engine/fingerprint` | ⏳ |
+| 4. So khớp / similarity matrix | `src/ast_engine/similarity` | ⏳ |
+| 5. API `/analyze`, `/compare` | `src/ast_engine/api` | ⏳ (mới có `/health`) |
 
-## 🚀 Cách chạy dịch vụ (Local Development)
+Chạy thử: xem `docs/ast-engine/INTEGRATION.md`. Tham số (k=25, window=40, ngưỡng 30/60) nằm ở `config.py`.
 
-### 1. Di chuyển vào thư mục dịch vụ:
-```bash
-cd apps/ast-engine
-```
-
-### 2. Tạo môi trường ảo Python (Khuyên dùng):
-```bash
-python -m venv venv
-
-# Kích hoạt trên Windows:
-.\venv\Scripts\activate
-
-# Hoặc kích hoạt trên macOS/Linux:
-source venv/bin/activate
-```
-
-### 3. Cài đặt thư viện:
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Khởi động server:
-```bash
-python main.py
-# Hoặc:
-uvicorn main:app --reload --port 8000
-```
-
----
-
-## 🔍 Kiểm tra hoạt động:
-* **Giao diện test Swagger UI (cực tiện):** Mở trình duyệt vào [http://localhost:8000/docs](http://localhost:8000/docs)
-* **Endpoint kiểm tra sức khỏe:** [http://localhost:8000/health](http://localhost:8000/health)
-* **Endpoint phân tích AST:** `POST http://localhost:8000/api/v1/ast/parse`
+> Parser trong repo được sinh bằng `antlr-ng`; hãy chạy `pnpm --filter @swp391/ast-engine generate:parser`
+> trên máy có Java để đồng nhất với ANTLR 4.13.2 rồi chạy lại test.

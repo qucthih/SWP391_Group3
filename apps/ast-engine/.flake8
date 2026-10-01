@@ -1,0 +1,4 @@
+[flake8]
+max-line-length = 100
+# Code sinh tự động từ ANTLR + lớp cơ sở viết tay (không lint)
+exclude = src/ast_engine/parsing/java_parser, .venv, __pycache__

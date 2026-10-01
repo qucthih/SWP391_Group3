@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/ast_engine"]
+# Code sinh tự động từ ANTLR không tính vào coverage (SRS 8.5: chỉ tính module lõi)
+omit = ["src/ast_engine/parsing/java_parser/*"]

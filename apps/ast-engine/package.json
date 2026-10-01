@@ -1,0 +1,12 @@
+{
+  "name": "@swp391/ast-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phân hệ 4 — AST Plagiarism Detection (Python/FastAPI, chỉ là wrapper script cho pnpm)",
+  "scripts": {
+    "dev": "python -m uvicorn ast_engine.main:app --reload --port 8001 --app-dir src",
+    "test": "python -m pytest -q",
+    "lint": "python -m flake8 src tests",
+    "generate:parser": "bash scripts/generate_parser.sh"
+  }
+}
