@@ -5,9 +5,173 @@ import path from "path";
 import { prisma } from "../prisma.js";
 import { emitGradingProgress } from "../socket/index.js";
 import { env } from "../config/env.js";
+import { astClient } from "../services/ast.client.js";
 
 // Giới hạn số lần nộp tối đa theo Risk R01 (mặc định 5 lần)
 const MAX_SUBMISSION_ATTEMPTS = 5;
+
+// ─── Background AST Check (ADR-001 §6 & Risk R-ADR-2) ────────────────────────
+/**
+ * Chạy kiểm tra AST hoàn toàn trong background (không block luồng nộp bài).
+ * Sinh viên nhận 202 Accepted ngay; AST xử lý bất đồng bộ.
+ *
+ * Flow (ADR-001 §6):
+ *   1. Đặt AST_CHECK_STATUS = PENDING (đã làm khi tạo submission)
+ *   2. POST /analyze → upsert ASTFingerprint
+ *   3. Đọc fingerprint cả lớp từ DB
+ *   4. POST /compare/batch
+ *   5. Upsert PLAGIARISM_MATCHES (id nhỏ đứng trước)
+ *   6. Cặp DANGER → SCORE_WITHHELD + ghi SCORE_AUDIT_LOGS
+ *   7. AST_CHECK_STATUS = DONE
+ */
+async function runASTCheckInBackground(
+    submissionId: string,
+    assignmentId: string,
+    filePath: string
+): Promise<void> {
+    try {
+        // ── Bước 1: Đọc source code từ file đã lưu trên disk ──────────────────
+        // Với Java .zip, giai đoạn M2 đọc toàn bộ nội dung file làm source_code.
+        // Khi nâng cấp: giải nén .zip và lấy file .java chính.
+        const sourceCode = fs.readFileSync(filePath, "utf-8");
+
+        // ── Bước 2: Phân tích fingerprint ─────────────────────────────────────
+        const analyzeResult = await astClient.analyze(submissionId, sourceCode);
+
+        if (!analyzeResult) {
+            // Engine lỗi/timeout: đánh dấu FAILED, KHÔNG chặn bài đã nộp
+            await prisma.submission.update({
+                where: { id: submissionId },
+                data: { astCheckStatus: "FAILED" },
+            });
+            return;
+        }
+
+        // ── Bước 3: Lưu fingerprint vào DB ────────────────────────────────────
+        await prisma.aSTFingerprint.upsert({
+            where: { submissionId },
+            create: {
+                submissionId,
+                fingerprintData: JSON.stringify(analyzeResult.fingerprint),
+            },
+            update: {
+                fingerprintData: JSON.stringify(analyzeResult.fingerprint),
+            },
+        });
+
+        // Nếu engine cảnh báo fallback → đánh dấu cần giảng viên xem tay
+        const needsManualReview = analyzeResult.warnings.some((w) =>
+            ["SYNTAX_ERROR_FALLBACK_LEX", "ANALYSIS_ERROR_FALLBACK_LEX",
+             "PARSE_TIMEOUT_FALLBACK_LEX", "INSUFFICIENT_DATA"].includes(w)
+        );
+
+        // ── Bước 4: Đọc fingerprint các bài cùng assignment trong DB ──────────
+        const existingFingerprints = await prisma.aSTFingerprint.findMany({
+            where: {
+                submission: { assignmentId },
+                submissionId: { not: submissionId }, // Loại trừ bài vừa nộp
+            },
+            select: { submissionId: true, fingerprintData: true },
+        });
+
+        // ── Bước 5: Batch compare nếu có bài cũ ──────────────────────────────
+        if (existingFingerprints.length > 0) {
+            const batchSubmissions = [
+                // Bài mới: dùng fingerprint vừa tính (không gọi lại /analyze)
+                { submission_id: submissionId, fingerprint: analyzeResult.fingerprint },
+                // Các bài cũ: dùng fingerprint đã lưu trong DB
+                ...existingFingerprints.map((fp) => ({
+                    submission_id: fp.submissionId,
+                    fingerprint: JSON.parse(fp.fingerprintData),
+                })),
+            ];
+
+            const batchResult = await astClient.compareBatch(batchSubmissions, {
+                minPercent: 30,
+                with_fragments: true,
+            });
+
+            if (batchResult && batchResult.matches.length > 0) {
+                // ── Bước 6: Chỉ giữ cặp có bài mới, upsert PLAGIARISM_MATCHES ─
+                const newMatches = batchResult.matches.filter(
+                    (m) => m.submission_1_id === submissionId || m.submission_2_id === submissionId
+                );
+
+                for (const match of newMatches) {
+                    // Luôn lưu id nhỏ đứng trước (ADR-001 §5) để tránh trùng cặp A-B và B-A
+                    const [s1, s2] = [match.submission_1_id, match.submission_2_id].sort();
+
+                    await prisma.plagiarismMatch.upsert({
+                        where: { submission1Id_submission2Id: { submission1Id: s1, submission2Id: s2 } },
+                        create: {
+                            submission1Id: s1,
+                            submission2Id: s2,
+                            similarityPercent: match.similarity_percent,
+                            matchedFragments: JSON.stringify(match.matched_fragments),
+                        },
+                        update: {
+                            similarityPercent: match.similarity_percent,
+                            matchedFragments: JSON.stringify(match.matched_fragments),
+                        },
+                    });
+
+                    // ── Bước 7: Cặp DANGER → giữ điểm + ghi audit log ────────
+                    if (match.level === "DANGER" && match.flag === "PLAGIARISM_DETECTED") {
+                        await prisma.$transaction(async (tx) => {
+                            // Đặt SCORE_WITHHELD cho BÀI MỚI
+                            await tx.submission.update({
+                                where: { id: submissionId },
+                                data: { status: "SCORE_WITHHELD" },
+                            });
+                            // Ghi SCORE_AUDIT_LOGS (Risk R03)
+                            await tx.scoreAuditLog.create({
+                                data: {
+                                    submissionId,
+                                    editorId: "system", // Hành động tự động của hệ thống
+                                    oldScore: null,
+                                    newScore: 0,
+                                    reason: `Nghi ngờ đạo văn: ${match.similarity_percent.toFixed(1)}% tương đồng với bài ${[s1, s2].find((id) => id !== submissionId)}`,
+                                },
+                            });
+                        });
+
+                        // Thông báo real-time cho sinh viên qua WebSocket
+                        emitGradingProgress({
+                            submissionId,
+                            step: "AST_ANALYSIS",
+                            progressPercent: 100,
+                            message: `Phát hiện khả năng đạo văn (${match.similarity_percent.toFixed(1)}%). Điểm tạm giữ, chờ Giảng viên xác nhận.`,
+                        });
+                    }
+                }
+            }
+        }
+
+        // ── Bước 8: Đánh dấu DONE (hoặc NEEDS_REVIEW nếu fallback) ───────────
+        await prisma.submission.update({
+            where: { id: submissionId },
+            data: {
+                astCheckStatus: needsManualReview ? "NEEDS_REVIEW" : "DONE",
+            },
+        });
+
+        emitGradingProgress({
+            submissionId,
+            step: "AST_ANALYSIS",
+            progressPercent: 100,
+            message: needsManualReview
+                ? "Kiểm tra đạo văn hoàn tất (chế độ dự phòng — giảng viên sẽ xem xét thêm)."
+                : "Kiểm tra đạo văn hoàn tất.",
+        });
+    } catch (err) {
+        console.error(`[AST Background] Lỗi xử lý submission ${submissionId}:`, err);
+        // Đảm bảo luôn đánh dấu FAILED để không bị kẹt trạng thái PENDING mãi
+        await prisma.submission.update({
+            where: { id: submissionId },
+            data: { astCheckStatus: "FAILED" },
+        }).catch(() => {});
+    }
+}
 
 // 1. Nộp bài tập (US12 & Risk R01)
 export const submitAssignment = async (req: Request, res: Response) => {
@@ -59,7 +223,7 @@ export const submitAssignment = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "File tải lên không phải là file ZIP hợp lệ (Sai magic bytes)." });
         }
 
-        // 5. Tạo submission với đường dẫn file đã lưu
+        // 5. Tạo submission với đường dẫn file đã lưu & AST_CHECK_STATUS = PENDING
         const submission = await prisma.submission.create({
             data: {
                 assignmentId,
@@ -67,10 +231,9 @@ export const submitAssignment = async (req: Request, res: Response) => {
                 fileUrl: `/uploads/submissions/${file.filename}`,
                 fileHash,
                 status: "PENDING",
+                astCheckStatus: "PENDING", // ADR-001 §5: trạng thái kiểm tra đạo văn
             },
         });
-
-
 
         // Phát thông báo tiến trình khởi tạo qua WebSocket
         emitGradingProgress({
@@ -80,7 +243,15 @@ export const submitAssignment = async (req: Request, res: Response) => {
             message: "Bài nộp đã được tiếp nhận và đưa vào hàng đợi chấm.",
         });
 
-        // Trả về mã 202 Accepted theo đúng đặc tả US12
+        // Kích hoạt AST check trong background — KHÔNG await để trả 202 ngay (Risk R-ADR-2)
+        // setImmediate đảm bảo response gửi trước khi background task bắt đầu
+        setImmediate(() => {
+            runASTCheckInBackground(submission.id, assignmentId, file.path).catch((err) =>
+                console.error("[AST Background] Unhandled error:", err)
+            );
+        });
+
+        // Trả về mã 202 Accepted theo đúng đặc tả US12 — NGAY LẬP TỨC
         return res.status(202).json({
             success: true,
             message: "Nộp bài thành công! Đang tiến hành chấm tự động.",
@@ -124,6 +295,19 @@ export const getMySubmissions = async (req: Request, res: Response) => {
 export const getSubmissionResult = async (req: Request, res: Response) => {
     try {
         const { submissionId } = req.params;
+        const requestingUser = req.user;
+
+        // Kiểm tra IDOR: sinh viên chỉ xem bài của chính mình
+        const ownerCheck = await prisma.submission.findUnique({
+            where: { id: submissionId },
+            select: { studentId: true },
+        });
+        if (!ownerCheck) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy kết quả bài nộp." });
+        }
+        if (requestingUser?.role === "STUDENT" && ownerCheck.studentId !== requestingUser.userId) {
+            return res.status(403).json({ success: false, message: "Bạn không có quyền xem bài nộp này." });
+        }
 
         const submission = await prisma.submission.findUnique({
             where: { id: submissionId },
@@ -131,7 +315,9 @@ export const getSubmissionResult = async (req: Request, res: Response) => {
                 assignment: { select: { title: true, language: true, testCases: true } },
                 student: { include: { user: { select: { fullName: true, email: true } } } },
                 appeal: true,
-                fingerprint: true,
+                // Fingerprint: chỉ Giảng viên/Admin mới thấy dữ liệu thô
+                fingerprint: requestingUser?.role === "STUDENT" ? false : true,
+                // Plagiarism matches: fetch rồi lọc theo role bên dưới
                 plagiarismMatches1: true,
                 plagiarismMatches2: true,
             },
@@ -141,7 +327,32 @@ export const getSubmissionResult = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, message: "Không tìm thấy kết quả bài nộp." });
         }
 
-        return res.json({ success: true, data: submission });
+        /**
+         * ADR-001 §8 — Bảo vệ quyền riêng tư:
+         * - STUDENT: chỉ thấy mức độ (level), % tương đồng, KHÔNG thấy:
+         *     + matched_fragments (số dòng code của bài đối chiếu)
+         *     + submission_1_id / submission_2_id (danh tính bài kia)
+         * - LECTURER / ADMIN: thấy đầy đủ
+         */
+        const sanitizePlagiarismForStudent = (matches: any[]) =>
+            matches.map(({ similarityPercent, id }) => ({
+                id,
+                similarityPercent,
+                // Ẩn: submission1Id, submission2Id, matchedFragments
+            }));
+
+        const isStudent = requestingUser?.role === "STUDENT";
+        const responseData = {
+            ...submission,
+            plagiarismMatches1: isStudent
+                ? sanitizePlagiarismForStudent(submission.plagiarismMatches1)
+                : submission.plagiarismMatches1,
+            plagiarismMatches2: isStudent
+                ? sanitizePlagiarismForStudent(submission.plagiarismMatches2)
+                : submission.plagiarismMatches2,
+        };
+
+        return res.json({ success: true, data: responseData });
     } catch (error) {
         console.error("Lỗi getSubmissionResult:", error);
         return res.status(500).json({ success: false, message: "Lỗi máy chủ khi lấy kết quả bài nộp." });
