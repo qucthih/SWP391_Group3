@@ -165,6 +165,9 @@ model Submission {
   totalScore   Float?            @map("total_score")
   aiFeedback   String?           @map("ai_feedback") @db.Text
   submittedAt  DateTime          @default(now()) @map("submitted_at")
+  // ADR-001 §5: Trạng thái pipeline kiểm tra đạo văn AST
+  // PENDING = chờ, DONE = hoàn tất, FAILED = engine lỗi/timeout, NEEDS_REVIEW = fallback lex
+  astCheckStatus String          @default("PENDING") @map("ast_check_status")
 
   assignment   Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student      Student           @relation(fields: [studentId], references: [userId], onUpdate: NoAction)
@@ -205,6 +208,9 @@ model PlagiarismMatch {
   submission1       Submission @relation("Submission1Matches", fields: [submission1Id], references: [id], onUpdate: NoAction)
   submission2       Submission @relation("Submission2Matches", fields: [submission2Id], references: [id], onUpdate: NoAction)
 
+  // ADR-001 §5: Luôn lưu id nhỏ trước (s1 < s2) để tránh trùng cặp A-B và B-A
+  // Constraint này đảm bảo upsert idempotent khi retry
+  @@unique([submission1Id, submission2Id], name: "submission1Id_submission2Id")
   @@map("plagiarism_matches")
 }
 
