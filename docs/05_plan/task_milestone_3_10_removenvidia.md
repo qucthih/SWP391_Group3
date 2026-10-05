@@ -22,7 +22,7 @@
 - [ ] API lấy danh sách assignment cũ + API tạo assignment nhận `sourceAssignmentId` (UC-02 Import/Clone)
 - [ ] Thống nhất sớm format API cập nhật `Submission` với Phân hệ 2/4/5 — vì các phân hệ này sẽ gọi ngược vào Phân hệ 1 ngay từ Milestone 2
 
-## Phân hệ 2 — Docker Autograding Sandbox (Thiên)
+## Phân hệ 2 — Docker Autograding Sandbox (Thiện)
 - [ ] Docker Compose: MSSQL Server 2019 + Redis
 - [ ] Code Execution Engine (Node.js + Dockerode): nhận job, tạo container theo ngôn ngữ (.NET 8.0 SDK/Java JDK 17), compile + chạy
 - [ ] Resource limit (NFR-01): `--memory=512m`, `--cpus=1`, `--network=none`
