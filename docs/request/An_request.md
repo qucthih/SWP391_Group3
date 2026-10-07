@@ -6,6 +6,25 @@
 
 ---
 
+## 📌 TỔNG QUAN BẢN ĐỒ CỔNG LOCALHOST (PORT MAP) CỦA TOÀN DỰ ÁN
+
+Để tránh hiểu nhầm giữa các thành viên (Frontend Web, API Gateway, Docker Sandbox, AST Engine, Database):
+
+| Phân hệ / Ứng dụng | Thư mục source | Địa chỉ Localhost | Mục đích sử dụng |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web Portal** | `apps/web` | `http://localhost:3000` *(hoặc `5173`)* | Giao diện React/Vite cho Sinh viên & Giảng viên |
+| **Backend API Gateway** | `apps/api` | `http://localhost:5000` | REST API, WebSocket (Socket.io), xử lý Auth/DB |
+| **AST Plagiarism Engine** | `apps/ast-engine` (Phân hệ 4) | `http://localhost:8000` *(mặc định)* | Python FastAPI parse AST & so khớp Winnowing |
+| **MSSQL Database** | Docker / Host | `localhost:1433` | Cơ sở dữ liệu Microsoft SQL Server |
+| **Redis / BullMQ** | Docker (Phân hệ 5) | `localhost:6379` | Message Queue cho các tác vụ bất đồng bộ |
+
+> ⚠️ **Lưu ý cho việc kiểm thử & Prompt:**
+> - Nếu test **Giao diện Web**: mở trình duyệt tại `http://localhost:3000` (được cấu hình trong `apps/web/vite.config.ts`).
+> - Web kết nối gọi dữ liệu về **Backend API**: `http://localhost:5000/api`.
+> - Backend API kết nối gọi sang **AST Engine**: mặc định `http://localhost:8000` (cấu hình qua biến `AST_ENGINE_URL`).
+
+---
+
 ## 📌 REQUEST 1 — Gửi: Thành viên phụ trách SRS / Database Schema
 
 ### Mức độ ưu tiên: 🔴 Cao — cần làm trước khi chạy tích hợp thật
@@ -65,10 +84,15 @@ Mục đích: đảm bảo mỗi cặp bài chỉ có 1 bản ghi (ADR-001 §5: 
 
 ### Mức độ ưu tiên: 🔴 Cao — cần xác nhận URL và định dạng response
 
-### Yêu cầu 2.1: Xác nhận URL mặc định và định dạng response
-
-Gateway đang dùng mặc định `AST_ENGINE_URL=http://localhost:8000`. Vui lòng xác nhận:
-1. **URL chính xác** khi chạy local development là gì? (có phải `http://localhost:8000` không?)
+### Yêu cầu 2.1: Xác nhận URL mặc định và định dạng response của AST Engine
+ 
+Trong kiến trúc toàn hệ thống:
+- Frontend chạy tại: `http://localhost:3000`
+- Backend API Gateway chạy tại: `http://localhost:5000`
+- Phân hệ 4 (AST Engine) dự kiến chạy tại: `http://localhost:8000`
+ 
+Hiện tại Backend Gateway đang cấu hình gọi sang AST Engine qua biến môi trường `AST_ENGINE_URL` (mặc định: `http://localhost:8000`). Vui lòng xác nhận:
+1. **URL chính xác** của AST FastAPI service khi chạy local development là gì? (có đúng là `http://localhost:8000` không?)
 2. **Docker Compose service name** khi chạy trong container là gì? (ví dụ: `http://ast-engine:8000`)
 
 Sau khi có thông tin, Dev 1 sẽ cập nhật file `.env.example` và `docker-compose.yml`.
