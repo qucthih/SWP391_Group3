@@ -200,15 +200,34 @@ Kiểm tra IDOR bổ sung: STUDENT chỉ được xem bài của chính mình (s
 | File | Loại | Thay đổi chính |
 | :--- | :---: | :--- |
 | `apps/api/src/services/ast.client.ts` | ✨ Mới | Wrapper HTTP cho AST Engine (ADR-001 §6) |
-| `apps/api/src/controllers/submission.controller.ts` | ✏️ Sửa | Import astClient, hàm background, fix IDOR, lọc plagiarism |
+| `apps/api/src/controllers/submission.controller.ts` | ✏️ Sửa | Import astClient, hàm background, fix IDOR, lọc plagiarism, đảo a_lines/b_lines |
 | `apps/api/prisma/schema.prisma` | ✏️ Sửa | Thêm `astCheckStatus`, `@@unique` PlagiarismMatch |
 | `apps/api/prisma/migrations/migration_lock.toml` | ✏️ Fix | Cập nhật provider Prisma v5 `sqlserver` → `mssql` |
+| `docker-compose.yml` | ✏️ Sửa | Khai báo service `ast-engine` lắng nghe trên cổng `8000` |
 
-### 9.7. Phần còn lại cần xác nhận từ thành viên khác
+---
 
-| Hành động | Người phụ trách | Ghi chú |
-| :--- | :--- | :--- |
-| Xác nhận ánh xạ `analysis_mode`, `fallback_reason`, `warnings` → cột DB | Thành viên DB | ADR-001 §5, đề xuất, chưa trong SRS |
-| Thêm `level`, `mode` vào bảng `PLAGIARISM_MATCHES` | Thành viên DB | ADR-001 §5 |
-| Thêm `AST_ENGINE_URL` vào file `.env` và config deploy | Dev phụ trách DevOps/infra | Hiện dùng mặc định `localhost:8000` |
-| Nâng cấp lên BullMQ worker (thay `setImmediate`) | Phân hệ 5 | ADR-001 §10, Milestone tiếp theo |
+## 10. CHI TIẾT GIAI ĐOẠN 10: CHUẨN HÓA & KHỚP NỐI TOÀN DIỆN PHÂN HỆ 4 (AST ENGINE INTEGRATION)
+
+- **Ngày cập nhật:** 2026-10-08
+- **Tài liệu căn cứ:** `HUONG_DAN_TICH_HOP_AST_ENGINE.md` do Nhật (Phân hệ 4 — AST Plagiarism Detection) gửi cho An (Dev 1).
+
+### 10.1. Chốt danh sách quyết định tích hợp Phân hệ 4
+
+| # | Hạng mục | Quyết định chốt | Hiện thực phía Backend Gateway (`apps/api`) |
+| :---: | :--- | :--- | :--- |
+| 1 | **Port & Service Domain** | AST Engine cố định tại **Port `8000`** (`http://localhost:8000`) | Đọc qua `AST_ENGINE_URL` trong `ast.client.ts`. Đã khai báo service `ast-engine` cổng `8000` trong `docker-compose.yml`. |
+| 2 | **Bài nộp lỗi cú pháp (Syntax Error)** | Engine không đánh `SKIPPED`, tự rơi về chế độ `lex` | Cập nhật DB trạng thái `astCheckStatus = 'NEEDS_REVIEW'` để cảnh báo Giảng viên bài có độ tin cậy thấp. |
+| 3 | **Hoán đổi thứ tự dòng (`matched_fragments`)** | Khi ID 1 > ID 2 (bị đảo do `.sort()`), phải đảo vị trí dòng tương ứng | Trong `submission.controller.ts`, kiểm tra `isReversed`: hoán đổi `a_lines` ↔ `b_lines` trong `matched_fragments` trước khi ghi DB. Giảng viên xem chi tiết luôn soi đúng dòng code của bài nộp. |
+| 4 | **IDOR & Security** | Sinh viên xem kết quả bị ẩn ID đối chiếu & raw fragments | Kiểm tra role `STUDENT` trong `getSubmissionResult`: chỉ trả về `similarityPercent`, ẩn toàn bộ thông tin mã nguồn bài đối chiếu. |
+| 5 | **Đơn vị xử lý Client duy nhất** | Toàn bộ các cuộc gọi HTTP đi qua `astClient` | Tập trung xử lý AbortController timeout (10s), ném exception cho 5xx/lỗi mạng để BullMQ retry, bỏ qua 4xx. |
+
+### 10.2. Cập nhật bảng kiểm soát công việc Phân hệ 1 (Section 4 — Việc của An)
+
+- [x] Giữ `ast.client.ts` là **client duy nhất**, phân biệt 4xx (không retry) và 5xx (ném lỗi).
+- [x] Timeout Gateway `10s` cho `/analyze` (lớn hơn ngân sách 5s của Engine).
+- [x] Tách luồng kiểm tra AST bất đồng bộ background qua `setImmediate` không block HTTP request `202 Accepted`.
+- [x] Chuẩn hóa ID bài nộp nhỏ đứng trước (`.sort()`) + **hoán đổi `a_lines` và `b_lines` khi ID 1 > ID 2**.
+- [x] Xử lý khi sinh viên nộp lại bài: dùng `upsert` trên constraint `@@unique([submission1Id, submission2Id])`.
+- [x] Khai báo service `ast-engine` cổng `8000` vào `docker-compose.yml`.
+- [x] Chặn IDOR: Ẩn thông tin bài làm trùng lặp khi người truy vấn có quyền `STUDENT`.

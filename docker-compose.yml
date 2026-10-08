@@ -24,6 +24,17 @@ services:
     volumes:
       - redis_data:/data
 
+  # 3. AST Plagiarism Detection Engine (FastAPI - Phân hệ 4)
+  ast-engine:
+    build:
+      context: ./apps/ast-engine
+    container_name: aita_ast_engine
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+
 volumes:
   mssql_data:
   redis_data:

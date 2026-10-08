@@ -99,7 +99,17 @@ async function runASTCheckInBackground(
 
                 for (const match of newMatches) {
                     // Luôn lưu id nhỏ đứng trước (ADR-001 §5) để tránh trùng cặp A-B và B-A
+                    const isReversed = match.submission_1_id > match.submission_2_id;
                     const [s1, s2] = [match.submission_1_id, match.submission_2_id].sort();
+
+                    // Nếu thứ tự bài bị đảo, cần đảo ngược a_lines ↔ b_lines để dòng code khớp đúng bài
+                    let fragments = match.matched_fragments || [];
+                    if (isReversed) {
+                        fragments = fragments.map((f) => ({
+                            a_lines: f.b_lines,
+                            b_lines: f.a_lines,
+                        }));
+                    }
 
                     await prisma.plagiarismMatch.upsert({
                         where: { submission1Id_submission2Id: { submission1Id: s1, submission2Id: s2 } },
@@ -107,11 +117,11 @@ async function runASTCheckInBackground(
                             submission1Id: s1,
                             submission2Id: s2,
                             similarityPercent: match.similarity_percent,
-                            matchedFragments: JSON.stringify(match.matched_fragments),
+                            matchedFragments: JSON.stringify(fragments),
                         },
                         update: {
                             similarityPercent: match.similarity_percent,
-                            matchedFragments: JSON.stringify(match.matched_fragments),
+                            matchedFragments: JSON.stringify(fragments),
                         },
                     });
 
