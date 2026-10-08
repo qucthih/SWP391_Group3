@@ -679,14 +679,21 @@ erDiagram
 | | `total_score` | FLOAT | | Total score |
 | | `ai_feedback` | TEXT | | AI Clean Code feedback |
 | | `submitted_at` | TIMESTAMP | DEFAULT NOW() | Date and time of submission |
+| | `ast_check_status`| VARCHAR(20) | NOT NULL, DEFAULT 'PENDING' | Pipeline status: PENDING, DONE, FAILED, NEEDS_REVIEW |
 | **AST_FINGERPRINTS**| `id` | UNIQUEIDENTIFIER | PK | Primary key, AST fingerprint identifier |
 | | `submission_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| Fingerprint of which submission |
 | | `fingerprint_data`| NVARCHAR(MAX) | NOT NULL | Winnowing k-gram hash array |
+| | `analysis_mode` | VARCHAR(5) | | Mode used (ast or lex) |
+| | `fallback_reason` | VARCHAR(50) | | Reason for lex fallback |
+| | `warnings` | NVARCHAR(MAX) | | JSON array of warning codes |
 | **PLAGIARISM_MATCHES**| `id` | UNIQUEIDENTIFIER | PK | Primary key, match identifier |
 | | `submission_1_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| First submission |
 | | `submission_2_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| Second submission |
 | | `similarity_percent`| FLOAT | NOT NULL | Percentage of similarity (0-100) |
 | | `matched_fragments` | NVARCHAR(MAX) | | Array of matching line numbers/blocks |
+| | `level` | VARCHAR(10) | | Plagiarism level: SAFE, WARNING, DANGER |
+| | `mode` | VARCHAR(5) | | Comparison mode used (ast, lex) |
+| | *(Constraint)* | `UNIQUE` | | `UNIQUE(submission_1_id, submission_2_id)` to prevent duplicate pairs |
 | **APPEALS** | `id` | UNIQUEIDENTIFIER | PK | Primary key, appeal identifier |
 | | `submission_id` | UNIQUEIDENTIFIER | FK -> SUBMISSIONS(id)| Appeal for which submission |
 | | `student_id` | UNIQUEIDENTIFIER | FK -> STUDENTS(user_id)| Foreign key to student who created the appeal |
