@@ -53,3 +53,18 @@ export const authorizeRole = (...roles: AuthUser["role"][]) => {
         next();
     };
 };
+
+// Bắt buộc có Internal API Key hợp lệ (Dùng cho giao tiếp nội bộ giữa Worker, Engine và Gateway)
+export const requireInternalApiKey = (req: Request, res: Response, next: NextFunction) => {
+    const internalKey = req.headers["x-internal-key"];
+    const expectedKey = env.INTERNAL_API_KEY || "aita_internal_secret_key_2026";
+
+    if (!internalKey || internalKey !== expectedKey) {
+        return res.status(403).json({
+            success: false,
+            message: "Truy cập bị từ chối: Yêu cầu khóa xác thực nội bộ hợp lệ.",
+        });
+    }
+
+    next();
+};

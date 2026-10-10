@@ -11,7 +11,8 @@ import {
     getPendingAppeals,
     updateSubmissionGradingResult,
 } from "../controllers/submission.controller.js";
-import { authenticateJWT, authorizeRole } from "../middlewares/auth.middleware.js";
+import { authenticateJWT, authorizeRole, requireInternalApiKey } from "../middlewares/auth.middleware.js";
+import { astService } from "../services/ast.service.js";
 
 const router = Router();
 
@@ -69,6 +70,13 @@ router.patch("/appeal/:appealId/resolve", authenticateJWT, authorizeRole("LECTUR
 router.get("/appeals/pending", authenticateJWT, authorizeRole("LECTURER", "ADMIN"), getPendingAppeals);
 
 // Endpoint nhận cập nhật tiến trình và điểm từ Sandbox/AST/Queue (Thống nhất với Phân hệ 2/4/5)
-router.patch("/:submissionId/result", updateSubmissionGradingResult);
+router.patch("/:submissionId/result", requireInternalApiKey, updateSubmissionGradingResult);
+
+// Endpoint nội bộ dành riêng cho Worker BullMQ (Phân hệ 5) gọi kích hoạt kiểm tra AST (Mục B4)
+router.post("/internal/:submissionId/ast-check", requireInternalApiKey, async (req, res) => {
+    const { submissionId } = req.params;
+    const result = await astService.check(submissionId);
+    return res.status(result.success ? 200 : 500).json(result);
+});
 
 export default router;
